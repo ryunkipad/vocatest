@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>= 돌티의 영단어 테스트 =</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Roboto, 'Malgun Gothic', sans-serif; 
+            padding: 20px; 
+            background-color: #f4f7f6; 
+            color: #333; 
+            -webkit-font-smoothing: antialiased;
+        }
+        
+        .container { 
+            width: 770px; 
+            margin: 40px auto; 
+            background: white; 
+            padding: 30px 40px; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
+        }
+        
+        .setup-box { background: #e9ecef; padding: 20px; border-radius: 8px; margin-bottom: 25px; border: 1px solid #dee2e6; overflow: hidden; transition: all 0.3s ease; }
+        .setup-box.collapsed { height: 0; padding-top: 0; padding-bottom: 0; margin-bottom: 10px; border: none; opacity: 0; }
+        
+        .toggle-setup-btn { background: #718096; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-size: 0.85em; margin-bottom: 20px; display: none; }
+        .toggle-setup-btn.show { display: block; }
+
+        .input-row { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 10px; }
+        .input-group { flex: 1; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 0.85em; }
+        input[type="text"], input[type="number"], input[type="file"] { width: 100%; padding: 8px; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; font-size: 0.9em; }
+        
+        button { background-color: #2d3748; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; white-space: nowrap; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; table-layout: fixed; }
+        th, td { border: 1px solid #dee2e6; padding: 12px 10px; text-align: left; }
+        th { background: #f1f3f5; font-size: 0.9em; text-align: center; }
+        
+        .word-cell { 
+            background-color: #f8f9fa; 
+            font-size: 1.1rem; 
+            font-weight: 600; 
+            letter-spacing: 0.01em; 
+            color: #2d3748;
+            padding-left: 25px !important; 
+        }
+
+        .input-cell {
+            background-color: #fff;
+            text-align: center;
+        }
+
+        .word-input { 
+            width: 95%; 
+            padding: 8px; 
+            border: 1px solid #ced4da; 
+            border-radius: 4px; 
+            box-sizing: border-box; 
+            font-size: 15px;
+            background-color: #fff;
+        }
+        .word-input:focus { border-color: #3182ce; outline: none; box-shadow: inset 0 1px 2px rgba(0,0,0,0.05); }
+        .word-input:disabled { background-color: #f1f3f5; color: #718096; border-color: #e2e8f0; }
+        
+        .grade-btn-group { display: flex; gap: 5px; justify-content: center; }
+        .ox-btn { width: 40px; height: 35px; border: 1px solid #ddd; background: #fff; cursor: pointer; border-radius: 4px; font-weight: bold; }
+        .btn-o.active { background-color: #38a169 !important; color: white !important; border-color: #2f855a !important; }
+        .btn-x.active { background-color: #e53e3e !important; color: white !important; border-color: #c53030 !important; }
+        
+        .score-display { font-size: 1.5em; font-weight: bold; color: #e53e3e; margin: 15px 0; text-align: center; border: 2px solid #e53e3e; padding: 10px; border-radius: 8px; display: none; }
+        .action-btns { margin-top: 20px; display: flex; justify-content: center; gap: 10px; min-height: 50px; }
+        .btn-blue { background-color: #3182ce; }
+        .btn-green { background-color: #38a169; }
+
+        .history-list { margin-top: 30px; padding-top: 20px; border-top: 2px solid #eee; }
+        .history-scroll-area { max-height: 500px; overflow-y: auto; margin-top: 10px; }
+        .history-item { display: flex; align-items: center; padding: 10px 15px; margin: 5px 0; background: #fff; border: 1px solid #ddd; border-radius: 8px; cursor: pointer; transition: 0.2s; font-size: 0.9em; }
+        .history-item:hover { border-color: #3182ce; background: #f8fafc; }
+        
+        .hist-info { display: flex; align-items: center; flex-grow: 1; gap: 10px; }
+        .hist-title { font-weight: bold; min-width: 100px; }
+        .hist-date { color: #888; font-size: 0.85em; }
+        .hist-status { font-weight: bold; margin-left: auto; margin-right: 10px; }
+
+        .del-circle { width: 22px; height: 22px; background: #cbd5e0; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; cursor: pointer; transition: 0.2s; flex-shrink: 0; }
+        .del-circle:hover { background: #e53e3e; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2 style="text-align: center; margin-bottom: 30px;">📝 『 돌티 』 의 영단어 테스트 📝 </h2>
+    
+    <button id="toggleSetupBtn" class="toggle-setup-btn" onclick="toggleSetup()">⚙️ 설정 열기</button>
+    <div id="setupBox" class="setup-box">
+        <div class="input-row">
+            <div class="input-group" style="flex: 1.5;">
+                <label>1. 파일 선택</label>
+                <input type="file" id="fileInput" accept=".xlsx, .xls">
+            </div>
+            <div class="input-group">
+                <label>2. 주차 입력</label>
+                <input type="text" id="weekInput" placeholder="예: 1주차">
+            </div>
+            <div class="input-group" style="flex: 0.7;">
+                <label>3. 문제 수</label>
+                <input type="number" id="countInput" value="40" min="1">
+            </div>
+            <button type="button" onclick="createNewExam()">시험지 생성</button>
+        </div>
+    </div>
+
+    <div id="scoreArea" class="score-display"></div>
+    <h3 id="examTitle" style="margin-top: 0; padding-left: 5px;"></h3>
+    <div id="examArea"></div>
+    <div id="actionBtns" class="action-btns"></div>
+
+    <div class="history-list">
+        <strong>📂 시험 히스토리</strong>
+        <div id="historyButtons" class="history-scroll-area"></div>
+    </div>
+</div>
+
+<script>
+    let dbData = [];
+    let currentActiveId = "";
+
+    function toggleSetup() {
+        const box = document.getElementById('setupBox');
+        const btn = document.getElementById('toggleSetupBtn');
+        if (box.classList.contains('collapsed')) {
+            box.classList.remove('collapsed');
+            btn.innerText = "📁 설정 접기";
+        } else {
+            box.classList.add('collapsed');
+            btn.innerText = "⚙️ 설정 열기";
+        }
+    }
+
+    document.getElementById('fileInput').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        const reader = new FileReader();
+        reader.onload = function(evt) {
+            const data = evt.target.result;
+            const workbook = XLSX.read(data, { type: 'binary' });
+            const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
+            dbData = rows.map(row => ({ week: String(row[0]||'').trim(), word: String(row[1]||'').trim() }))
+                        .filter(item => item.week && item.word);
+            alert("파일 로드 완료!");
+            loadHistoryList();
+        };
+        reader.readAsBinaryString(file);
+    });
+
+    function createNewExam() {
+        const week = document.getElementById('weekInput').value.trim();
+        const requestedCount = parseInt(document.getElementById('countInput').value) || 40; // 입력값 없으면 40
+
+        if (dbData.length === 0) return alert("파일을 먼저 선택해주세요.");
+        if (!week) return alert("주차를 입력해주세요.");
+
+        // 해당 주차 단어 전체 필터링
+        let words = dbData.filter(item => item.week === week).map(item => item.word);
+        if (words.length === 0) return alert("해당 주차의 데이터가 없습니다.");
+
+        // 무작위로 섞기
+        words.sort(() => Math.random() - 0.5);
+
+        // 입력된 개수만큼 자르기 (데이터가 입력값보다 적으면 전체 사용)
+        const finalWords = words.slice(0, requestedCount);
+
+        let v = 1;
+        while (localStorage.getItem(`exam_${week}_v${v}`)) { v++; }
+        const examId = `exam_${week}_v${v}`;
+        const examData = {
+            id: examId, week: week, version: v,
+            words: finalWords,
+            answers: {}, results: {}, status: "진행중", score: null, submitDate: ""
+        };
+        localStorage.setItem(examId, JSON.stringify(examData));
+        
+        document.getElementById('setupBox').classList.add('collapsed');
+        const tBtn = document.getElementById('toggleSetupBtn');
+        tBtn.classList.add('show');
+        tBtn.innerText = "⚙️ 설정 열기";
+
+        renderExam(examId);
+        loadHistoryList();
+    }
+
+    function renderExam(examId) {
+        currentActiveId = examId;
+        const data = JSON.parse(localStorage.getItem(examId));
+        if(!data) return;
+
+        const is진행중 = (data.status === "진행중");
+        const is채점대기 = (data.status === "완료 - 채점대기");
+        const is완료 = (!is진행중 && !is채점대기);
+
+        document.getElementById('examTitle').innerText = `${data.week} (제 ${data.version}회차 - ${data.words.length}문항)`;
+        const sArea = document.getElementById('scoreArea');
+        if(is완료) { sArea.innerText = `최종 점수: ${data.score}점`; sArea.style.display="block"; }
+        else { sArea.style.display="none"; }
+        
+        let html = `<table><thead><tr><th width="60">번호</th><th width="35%">단어</th><th>뜻 입력</th>${!is진행중 ? '<th width="110">채점</th>' : ''}</tr></thead><tbody id="examTableBody">`;
+        
+        data.words.forEach((word, i) => {
+            const ans = data.answers[word] || "";
+            const res = data.results[word] || "O";
+            html += `<tr>
+                <td style="color: #888; text-align: center;">${i+1}</td>
+                <td class="word-cell">${word}</td>
+                <td class="input-cell"><input type="text" class="word-input" data-word="${word}" value="${ans}" ${!is진행중 ? 'disabled' : ''} onkeydown="handleKey(event, ${i})" onblur="saveValue('${word}', this.value)"></td>
+                ${!is진행중 ? `<td>
+                    <div class="grade-btn-group">
+                        <button type="button" class="ox-btn btn-o ${res==='O'?'active':''}" data-word="${word}" data-val="O" ${is완료?'disabled':''}>O</button>
+                        <button type="button" class="ox-btn btn-x ${res==='X'?'active':''}" data-word="${word}" data-val="X" ${is완료?'disabled':''}>X</button>
+                    </div>
+                </td>` : ''}
+            </tr>`;
+        });
+        
+        document.getElementById('examArea').innerHTML = html + `</tbody></table>`;
+        
+        const tableBody = document.getElementById('examTableBody');
+        if (tableBody) {
+            tableBody.onclick = function(e) {
+                const btn = e.target.closest('.ox-btn');
+                if (!btn || btn.disabled) return;
+                const word = btn.getAttribute('data-word');
+                const val = btn.getAttribute('data-val');
+                let currentData = JSON.parse(localStorage.getItem(currentActiveId));
+                currentData.results[word] = val;
+                localStorage.setItem(currentActiveId, JSON.stringify(currentData));
+                const group = btn.closest('.grade-btn-group');
+                group.querySelectorAll('.ox-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            };
+        }
+
+        const btnArea = document.getElementById('actionBtns');
+        btnArea.innerHTML = is진행중 ? `<button type="button" class="btn-blue" onclick="submitExam()">제출하기</button>` : 
+                           (is채점대기 ? `<button type="button" class="btn-green" onclick="gradeExam()">채점완료</button>` : "");
+        if(is진행중) setTimeout(() => document.querySelectorAll('.word-input')[0]?.focus(), 100);
+    }
+
+    function saveValue(word, val) {
+        let data = JSON.parse(localStorage.getItem(currentActiveId));
+        if(data && data.status === "진행중") { data.answers[word] = val; localStorage.setItem(currentActiveId, JSON.stringify(data)); }
+    }
+
+    function handleKey(e, i) { if (e.key === 'Enter') { e.preventDefault(); const next = document.querySelectorAll('.word-input')[i+1]; if(next) next.focus(); } }
+
+    function submitExam() {
+        if(!confirm("제출하시면 수정이 불가합니다. 정말로 제출하시겠습니까?")) return;
+        let data = JSON.parse(localStorage.getItem(currentActiveId));
+        const now = new Date();
+        data.submitDate = `${now.getFullYear()}-${(now.getMonth()+1).toString().padStart(2,'0')}-${now.getDate().toString().padStart(2,'0')} ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
+        data.status = "완료 - 채점대기";
+        data.words.forEach(w => { if(!data.results[w]) data.results[w] = "O"; });
+        localStorage.setItem(currentActiveId, JSON.stringify(data));
+        renderExam(currentActiveId);
+        loadHistoryList();
+    }
+
+    function gradeExam() {
+        let data = JSON.parse(localStorage.getItem(currentActiveId));
+        const correct = data.words.filter(w => data.results[w] === "O").length;
+        data.score = Math.round((correct / data.words.length) * 100);
+        data.status = `완료 - ${data.score}점`;
+        localStorage.setItem(currentActiveId, JSON.stringify(data));
+        renderExam(currentActiveId);
+        loadHistoryList();
+        window.scrollTo(0,0);
+    }
+
+    function deleteExam(e, id) {
+        e.stopPropagation();
+        if(confirm("기록을 삭제하시겠습니까?")) {
+            localStorage.removeItem(id);
+            if(currentActiveId === id) { 
+                document.getElementById('examArea').innerHTML = ""; 
+                document.getElementById('examTitle').innerText = "";
+                document.getElementById('actionBtns').innerHTML = "";
+                document.getElementById('scoreArea').style.display="none";
+            }
+            loadHistoryList();
+        }
+    }
+
+    function loadHistoryList() {
+        const area = document.getElementById('historyButtons');
+        const keys = Object.keys(localStorage).filter(k => k.startsWith('exam_')).sort((a,b) => b.localeCompare(a));
+        if (keys.length === 0) { area.innerHTML = "<div style='padding:20px; color:#999; text-align:center;'>히스토리가 없습니다.</div>"; return; }
+        area.innerHTML = keys.map(k => {
+            const d = JSON.parse(localStorage.getItem(k));
+            let statusColor = d.status === "진행중" ? "#3182ce" : (d.status === "완료 - 채점대기" ? "#e67e22" : "#38a169");
+            return `<div class="history-item" onclick="renderExam('${k}')">
+                <div class="hist-info">
+                    <span class="hist-title">${d.week} (${d.version}회)</span>
+                    <span class="hist-date">${d.submitDate||'진행 중'}</span>
+                    <span class="hist-status" style="color:${statusColor}">${d.status}</span>
+                </div>
+                <div class="del-circle" onclick="deleteExam(event, '${k}')">×</div>
+            </div>`;
+        }).join('');
+    }
+    window.onload = loadHistoryList;
+</script>
+</body>
+</html>
