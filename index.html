@@ -1,314 +1,737 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <title>= 돌티의 영단어 테스트 =</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <style>
-        body { 
-            font-family: 'Segoe UI', Roboto, 'Malgun Gothic', sans-serif; 
-            padding: 20px; 
-            background-color: #f4f7f6; 
-            color: #333; 
-            -webkit-font-smoothing: antialiased;
-        }
-        
-        .container { 
-            width: 770px; 
-            margin: 40px auto; 
-            background: white; 
-            padding: 30px 40px; 
-            border-radius: 12px; 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
-        }
-        
-        .setup-box { background: #e9ecef; padding: 20px; border-radius: 8px; margin-bottom: 25px; border: 1px solid #dee2e6; overflow: hidden; transition: all 0.3s ease; }
-        .setup-box.collapsed { height: 0; padding-top: 0; padding-bottom: 0; margin-bottom: 10px; border: none; opacity: 0; }
-        
-        .toggle-setup-btn { background: #718096; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-size: 0.85em; margin-bottom: 20px; display: none; }
-        .toggle-setup-btn.show { display: block; }
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#5b6df8" />
+  <meta name="description" content="한다면 하는 도리의 영어공부 - 회차별 영어 표현 학습" />
+  <title>한다면 하는 도리의 영어공부</title>
+  <script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
+  <style>
+    :root{
+      --bg:#f6f7fb; --card:#fff; --line:#e7e9f0; --text:#22252b;
+      --muted:#727784; --accent:#5b6df8; --accent2:#eef0ff;
+      --ok:#1f9d61; --warn:#d97706; --danger:#d84a4a;
+      --shadow:0 10px 30px rgba(30,35,60,.07);
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Pretendard,"Noto Sans KR",system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text)}
+    button,input,textarea{font:inherit}
+    button{cursor:pointer}
+    .app{max-width:1120px;margin:0 auto;padding:28px 20px 60px}
+    header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+    .brand{font-size:26px;font-weight:800;letter-spacing:-.6px}
+    .sub{color:var(--muted);font-size:14px}
+    .tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}
+    .tab{border:1px solid var(--line);background:#fff;border-radius:14px;padding:13px 16px;font-weight:700;color:var(--muted)}
+    .tab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+    .tab .badge{display:inline-block;margin-left:7px;font-size:11px;padding:2px 7px;border-radius:999px;background:rgba(255,255,255,.25)}
+    .panel{display:none}.panel.active{display:block}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:22px;box-shadow:var(--shadow);margin-bottom:16px}
+    .hero{padding:32px}
+    .hero-grid{display:grid;grid-template-columns:1fr auto;gap:24px;align-items:center}
+    h1,h2,h3,p{margin-top:0}
+    h2{font-size:21px}
+    .round-big{font-size:44px;font-weight:850;letter-spacing:-1.2px}
+    .date-big{font-size:18px;color:var(--muted);margin-top:4px}
+    .primary{border:0;background:var(--accent);color:#fff;padding:13px 19px;border-radius:12px;font-weight:800}
+    .secondary{border:1px solid var(--line);background:#fff;color:var(--text);padding:11px 15px;border-radius:11px;font-weight:700}
+    .danger{border:1px solid #f0caca;background:#fff4f4;color:var(--danger);padding:10px 14px;border-radius:10px;font-weight:700}
+    .ghost{border:0;background:transparent;color:var(--accent);font-weight:750;padding:8px 6px}
+    .toolbar{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
+    .stats{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+    .pill{padding:7px 10px;border-radius:999px;background:#f1f3f7;color:#565b66;font-size:13px;font-weight:700}
+    .pill.ok{background:#eaf8f1;color:var(--ok)}
+    .pill.warn{background:#fff6e8;color:var(--warn)}
+    .session-list{display:grid;gap:10px}
+    .session-row{display:grid;grid-template-columns:1fr auto;align-items:center;gap:16px;padding:15px 16px;border:1px solid var(--line);border-radius:13px;background:#fff}
+    .session-row:hover{border-color:#cfd4ff}
+    .session-title{font-weight:800}
+    .session-meta{font-size:13px;color:var(--muted);margin-top:4px}
+    .review-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start}
+    .review-switch{display:flex;gap:8px}
+    .review-switch button{padding:9px 13px;border-radius:10px;border:1px solid var(--line);background:#fff;font-weight:750}
+    .review-switch button.active{background:var(--accent2);border-color:#bec5ff;color:var(--accent)}
+    .expressions{counter-reset:item;display:grid;gap:8px;margin:18px 0}
+    .korean-item{display:flex;gap:12px;align-items:flex-start;background:#fafbfe;border:1px solid #eceef4;border-radius:12px;padding:13px 14px;font-weight:650}
+    .korean-item::before{counter-increment:item;content:counter(item);min-width:25px;height:25px;display:grid;place-items:center;border-radius:8px;background:#eef0f5;color:#707582;font-size:12px}
+    .record-box{border:1px dashed #d3d7e4;border-radius:15px;padding:18px;background:#fcfcfe}
+    .recording{color:var(--danger);font-weight:800}
+    audio{width:100%;margin:12px 0 4px}
+    .empty{padding:28px;text-align:center;color:var(--muted);background:#fafbfc;border:1px dashed var(--line);border-radius:14px}
+    .upload{padding:20px;border:1px dashed #cfd4df;border-radius:14px;background:#fafbfe}
+    .upload input{margin-top:9px}
+    .parse-status{margin-top:10px;color:var(--muted);font-size:13px}
+    .table-wrap{overflow:auto}
+    table{width:100%;border-collapse:collapse;min-width:680px}
+    th,td{padding:12px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+    th{font-size:13px;color:var(--muted);font-weight:800}
+    td input{width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 10px}
+    .icon-btn{border:0;background:transparent;font-size:17px;padding:7px;border-radius:8px}
+    .icon-btn:hover{background:#f0f1f5}
+    .add-grid{display:grid;grid-template-columns:1fr 1fr auto;gap:9px}
+    .add-grid input{border:1px solid var(--line);border-radius:11px;padding:11px 12px}
+    .hint{font-size:13px;color:var(--muted);line-height:1.6}
+    .notice{padding:12px 14px;border-radius:11px;background:#f4f6ff;color:#4c57a8;font-size:13px;line-height:1.6}
 
-        .input-row { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 10px; }
-        .input-group { flex: 1; }
-        label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 0.85em; }
-        input[type="text"], input[type="number"], input[type="file"] { width: 100%; padding: 8px; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; font-size: 0.9em; }
-        
-        button { background-color: #2d3748; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; white-space: nowrap; }
-        
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; table-layout: fixed; }
-        th, td { border: 1px solid #dee2e6; padding: 12px 10px; text-align: left; }
-        th { background: #f1f3f5; font-size: 0.9em; text-align: center; }
-        
-        .word-cell { 
-            background-color: #f8f9fa; 
-            font-size: 1.1rem; 
-            font-weight: 600; 
-            letter-spacing: 0.01em; 
-            color: #2d3748;
-            padding-left: 25px !important; 
-        }
+    .korean-item.free-source{background:#fff9df;border-color:#f1dfa0}
+    .source-tag{margin-left:auto;font-size:11px;padding:3px 7px;border-radius:999px;background:#f5e8a8;color:#7a6517;font-weight:800;white-space:nowrap}
+    .complete-icon{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:#22a06b;color:#fff;font-size:13px;font-weight:900;margin-right:6px;vertical-align:-2px}
+    .pagination{display:flex;gap:6px;justify-content:center;align-items:center;margin-top:16px;flex-wrap:wrap}
 
-        .input-cell {
-            background-color: #fff;
-            text-align: center;
-        }
+    .current-session-bar{display:none;align-items:center;justify-content:space-between;gap:12px;
+      padding:10px 14px;margin:-8px 0 18px;background:#fff;border:1px solid var(--line);
+      border-radius:12px;box-shadow:0 4px 14px rgba(30,35,60,.04);position:sticky;top:8px;z-index:20}
+    .current-session-bar.show{display:flex}
+    .current-session-round{font-weight:850;color:var(--accent)}
+    .current-session-date{font-size:13px;color:var(--muted)}
+    .page-btn{min-width:36px;height:36px;border:1px solid var(--line);background:#fff;border-radius:9px;font-weight:750}
+    .page-btn.active{background:var(--accent);border-color:var(--accent);color:#fff}
+    .page-btn:disabled{opacity:.4;cursor:default}
 
-        .word-input { 
-            width: 95%; 
-            padding: 8px; 
-            border: 1px solid #ced4da; 
-            border-radius: 4px; 
-            box-sizing: border-box; 
-            font-size: 15px;
-            background-color: #fff;
-        }
-        .word-input:focus { border-color: #3182ce; outline: none; box-shadow: inset 0 1px 2px rgba(0,0,0,0.05); }
-        .word-input:disabled { background-color: #f1f3f5; color: #718096; border-color: #e2e8f0; }
-        
-        .grade-btn-group { display: flex; gap: 5px; justify-content: center; }
-        .ox-btn { width: 40px; height: 35px; border: 1px solid #ddd; background: #fff; cursor: pointer; border-radius: 4px; font-weight: bold; }
-        .btn-o.active { background-color: #38a169 !important; color: white !important; border-color: #2f855a !important; }
-        .btn-x.active { background-color: #e53e3e !important; color: white !important; border-color: #c53030 !important; }
-        
-        .score-display { font-size: 1.5em; font-weight: bold; color: #e53e3e; margin: 15px 0; text-align: center; border: 2px solid #e53e3e; padding: 10px; border-radius: 8px; display: none; }
-        .action-btns { margin-top: 20px; display: flex; justify-content: center; gap: 10px; min-height: 50px; }
-        .btn-blue { background-color: #3182ce; }
-        .btn-green { background-color: #38a169; }
-
-        .history-list { margin-top: 30px; padding-top: 20px; border-top: 2px solid #eee; }
-        .history-scroll-area { max-height: 500px; overflow-y: auto; margin-top: 10px; }
-        .history-item { display: flex; align-items: center; padding: 10px 15px; margin: 5px 0; background: #fff; border: 1px solid #ddd; border-radius: 8px; cursor: pointer; transition: 0.2s; font-size: 0.9em; }
-        .history-item:hover { border-color: #3182ce; background: #f8fafc; }
-        
-        .hist-info { display: flex; align-items: center; flex-grow: 1; gap: 10px; }
-        .hist-title { font-weight: bold; min-width: 100px; }
-        .hist-date { color: #888; font-size: 0.85em; }
-        .hist-status { font-weight: bold; margin-left: auto; margin-right: 10px; }
-
-        .del-circle { width: 22px; height: 22px; background: #cbd5e0; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; cursor: pointer; transition: 0.2s; flex-shrink: 0; }
-        .del-circle:hover { background: #e53e3e; }
-    </style>
+    .tab-count-badge{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:20px;
+      padding:0 7px;margin-left:6px;border-radius:999px;background:rgba(91,109,248,.10);
+      color:var(--accent);font-size:11px;font-weight:850;vertical-align:1px}
+    .tab.active .tab-count-badge{background:rgba(255,255,255,.22);color:#fff}
+    .delete-x-btn{width:28px;height:28px;border:0;background:transparent;color:#a0a4ae;
+      border-radius:8px;font-size:18px;line-height:1;padding:0;display:grid;place-items:center}
+    .delete-x-btn:hover{background:#fff0f0;color:var(--danger)}
+    @media(max-width:760px){
+      .tabs{grid-template-columns:1fr 1fr}
+      .hero-grid{grid-template-columns:1fr}
+      .round-big{font-size:36px}
+      .add-grid{grid-template-columns:1fr}
+      .review-head{display:block}
+      .review-switch{margin-top:12px}
+    }
+  </style>
 </head>
 <body>
+<div class="app">
+  <header>
+    <div>
+      <div class="brand">한다면 하는 도리의 영어공부</div>
+      <div class="sub">회차별 영어 표현 학습 · 로컬 프로토타입</div>
+    </div>
+    <div class="toolbar">
+      <button class="secondary" onclick="exportData()">전체 백업</button>
+      <button class="secondary" onclick="document.getElementById('restoreFile').click()">백업 복원</button>
+      <input id="restoreFile" type="file" accept=".json,application/json" style="display:none" onchange="restoreData(event)">
+    </div>
+  </header>
 
-<div class="container">
-    <h2 style="text-align: center; margin-bottom: 30px;">📝 『 돌티 』 의 영단어 테스트 📝 </h2>
-    
-    <button id="toggleSetupBtn" class="toggle-setup-btn" onclick="toggleSetup()">⚙️ 설정 열기</button>
-    <div id="setupBox" class="setup-box">
-        <div class="input-row">
-            <div class="input-group" style="flex: 1.5;">
-                <label>1. 파일 선택</label>
-                <input type="file" id="fileInput" accept=".xlsx, .xls">
-            </div>
-            <div class="input-group">
-                <label>2. 주차 입력</label>
-                <input type="text" id="weekInput" placeholder="예: 1주차">
-            </div>
-            <div class="input-group" style="flex: 0.7;">
-                <label>3. 문제 수</label>
-                <input type="number" id="countInput" value="40" min="1">
-            </div>
-            <button type="button" onclick="createNewExam()">시험지 생성</button>
+  <nav class="tabs">
+    <button class="tab active" data-tab="start" onclick="goTab('start')">시작하기</button>
+    <button class="tab" data-tab="review" onclick="goTab('review')">① 복습하기 <span class="badge" id="reviewTabBadge">-</span></button>
+    <button class="tab" data-tab="study" onclick="goTab('study')">② 본 공부 <span class="tab-count-badge" id="studyTabCount" style="display:none"></span></button>
+    <button class="tab" data-tab="free" onclick="goTab('free')">③ 답답이 노트 <span class="tab-count-badge" id="freeTabCount" style="display:none"></span></button>
+  </nav>
+
+  <div class="current-session-bar" id="currentSessionBar">
+    <div>
+      <span class="current-session-round" id="currentSessionRound"></span>
+      <span class="current-session-date" id="currentSessionDate"></span>
+    </div>
+    <button class="ghost" onclick="goTab('start')">회차 목록</button>
+  </div>
+
+  <section class="panel active" id="panel-start">
+    <div class="card hero">
+      <div class="hero-grid">
+        <div>
+          <div class="round-big" id="heroRound">1회차</div>
+          <div class="date-big" id="heroDate"></div>
+          <div class="stats">
+            <span class="pill" id="heroReview">복습 미진행</span>
+            <span class="pill" id="heroStudy">본 공부 0개</span>
+            <span class="pill" id="heroFree">답답이 노트 0개</span>
+          </div>
         </div>
+        <div class="toolbar" style="justify-content:flex-end">
+          <button class="secondary" id="continueBtn" onclick="continueCurrent()" style="display:none">현재 회차 계속하기</button>
+          <button class="primary" id="newRoundBtn" onclick="startNewRound()">1회차 시작하기</button>
+        </div>
+      </div>
     </div>
 
-    <div id="scoreArea" class="score-display"></div>
-    <h3 id="examTitle" style="margin-top: 0; padding-left: 5px;"></h3>
-    <div id="examArea"></div>
-    <div id="actionBtns" class="action-btns"></div>
-
-    <div class="history-list">
-        <strong>📂 시험 히스토리</strong>
-        <div id="historyButtons" class="history-scroll-area"></div>
+    <div class="card">
+      <h2>기존 회차</h2><p class="hint">회차를 삭제해도 번호는 다시 정렬되지 않습니다. 삭제된 회차 번호는 빈 번호로 유지됩니다.</p>
+      <div class="session-list" id="sessionList"></div><div class="pagination" id="sessionPagination"></div>
     </div>
+    <div class="notice">
+      <b>같은 날짜에도 여러 회차를 만들 수 있습니다.</b> 현재 회차는 계속 수정할 수 있고, [새로 시작하기]를 누르면 다음 번호의 회차가 생성됩니다.<br><br>
+      <b>저장 위치:</b> 회차·표현·녹음은 GitHub 서버가 아니라 현재 브라우저에 저장됩니다. 다른 PC/휴대폰과 자동 동기화되지 않으므로 중요한 기록은 우측 상단의 <b>전체 백업</b>을 이용하세요.
+    </div>
+  </section>
+
+  <section class="panel" id="panel-review">
+    <div class="card">
+      <div class="review-head">
+        <div>
+          <h2>① 복습하기</h2>
+          <p class="hint" id="reviewDesc">최근 3회차의 본 공부 + 답답이 노트 표현을 한글만 표시합니다.</p>
+        </div>
+        <div class="review-switch">
+          <button id="reviewBtn1" onclick="switchReview(1)">1차 복습</button>
+          <button id="reviewBtn2" onclick="switchReview(2)">2차 복습</button>
+        </div>
+      </div>
+
+      <div id="reviewEmpty" class="empty" style="display:none"></div>
+      <div id="reviewMain">
+        <div class="toolbar">
+          <button class="secondary" onclick="reshuffle()">↻ 다시 섞기</button>
+          <span class="pill" id="reviewCount"></span>
+          <span class="pill" id="reviewStatus"></span>
+        </div>
+
+        <div class="record-box" style="margin-top:16px">
+          <div class="toolbar">
+            <button class="primary record-toggle" onclick="toggleRecord()">🎙 녹음하기</button>
+            <button class="secondary rerecord-toggle" onclick="rerecord()" style="display:none">다시 녹음</button>
+            <button class="danger delete-recording-toggle" onclick="deleteRecording()" style="display:none">녹음 삭제</button>
+            <span class="record-timer"></span>
+          </div>
+          <audio class="audio-player" controls style="display:none"></audio>
+        </div>
+
+        <div class="expressions" id="reviewList"></div>
+
+        <div class="record-box">
+          <div class="toolbar">
+            <button class="primary record-toggle" onclick="toggleRecord()">🎙 녹음하기</button>
+            <button class="secondary rerecord-toggle" onclick="rerecord()" style="display:none">다시 녹음</button>
+            <button class="danger delete-recording-toggle" onclick="deleteRecording()" style="display:none">녹음 삭제</button>
+            <span class="record-timer"></span>
+          </div>
+          <audio class="audio-player" controls style="display:none"></audio>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-study">
+    <div id="studyContent"></div>
+  </section>
+
+  <section class="panel" id="panel-free">
+    <div id="freeContent"></div>
+  </section>
 </div>
 
 <script>
-    let dbData = [];
-    let currentActiveId = "";
+const LS_KEY='dailyEnglishPrototype_v1';
+let state = loadState();
+let currentSessionId = null;
+let currentReviewNo = 1;
+let sessionPage = 1;
+const SESSION_PAGE_SIZE = 10;
+let recorder = null, chunks = [], recordStartedAt = 0, timerInterval = null;
 
-    function toggleSetup() {
-        const box = document.getElementById('setupBox');
-        const btn = document.getElementById('toggleSetupBtn');
-        if (box.classList.contains('collapsed')) {
-            box.classList.remove('collapsed');
-            btn.innerText = "📁 설정 접기";
-        } else {
-            box.classList.add('collapsed');
-            btn.innerText = "⚙️ 설정 열기";
+function todayStr(){
+  const d=new Date();
+  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+function loadState(){
+  try{
+    const raw=localStorage.getItem(LS_KEY);
+    const loaded=raw?JSON.parse(raw):{sessions:[]};
+    loaded.sessions ||= [];
+    const existingMax=loaded.sessions.reduce((m,s)=>Math.max(m,s.round||0),0);
+    if(!Number.isFinite(loaded.maxRoundEver) || loaded.maxRoundEver<existingMax) loaded.maxRoundEver=existingMax;
+    return loaded;
+  }catch(e){ return {sessions:[],maxRoundEver:0}; }
+}
+function saveState(){ localStorage.setItem(LS_KEY,JSON.stringify(state)); renderAll(); }
+function nextRound(){ return (state.maxRoundEver||0)+1; }
+function getCurrent(){ return state.sessions.find(s=>s.id===currentSessionId)||null; }
+function newId(){ return crypto.randomUUID?crypto.randomUUID():(Date.now()+"_"+Math.random()); }
+
+function goTab(name){
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab===name));
+  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+  document.getElementById('panel-'+name).classList.add('active');
+  if(name!=='start' && !getCurrent()){
+    alert('먼저 시작 화면에서 회차를 시작하거나 기존 회차를 선택해주세요.');
+    goTab('start'); return;
+  }
+  renderAll();
+}
+
+function startNewRound(){
+  const s={
+    id:newId(), round:nextRound(), date:todayStr(), createdAt:Date.now(),
+    study:[], free:[],
+    reviews:{
+      1:{shuffle:[], audioKey:null, duration:0, completedAt:null},
+      2:{shuffle:[], audioKey:null, duration:0, completedAt:null}
+    }
+  };
+  state.sessions.push(s);
+  state.maxRoundEver=Math.max(state.maxRoundEver||0,s.round);
+  currentSessionId=s.id;
+  currentReviewNo=1;
+  saveState();
+  prepareReviewIfNeeded(1);
+  goTab('review');
+}
+function continueCurrent(){
+  if(!getCurrent()) return;
+  goTab('review');
+}
+function selectSession(id){ currentSessionId=id; currentReviewNo=1; renderAll(); }
+async function deleteSession(id){
+  const s=state.sessions.find(x=>x.id===id);
+  if(!s) return;
+  if(!confirm(`${s.round}회차를 삭제할까요?\n\n삭제해도 다른 회차 번호는 당겨지지 않으며, ${s.round}회차 번호는 비어 있게 됩니다.`)) return;
+
+  // Delete associated audio blobs if present.
+  for(const n of [1,2]){
+    const key=s.reviews?.[n]?.audioKey;
+    if(key){
+      try{ await idbDelete(key); }catch(e){ console.warn(e); }
+    }
+  }
+
+  state.sessions=state.sessions.filter(x=>x.id!==id);
+  if(currentSessionId===id) currentSessionId=null;
+  saveState();
+}
+
+function reviewDoneCount(s){
+  if(!s) return 0;
+  return [1,2].filter(n=>s.reviews?.[n]?.audioKey).length;
+}
+function allExpressions(s){ return [...(s.study||[]).map(x=>({...x,source:'study'})),...(s.free||[]).map(x=>({...x,source:'free'}))]; }
+function prevThreeExpressions(s){
+  if(!s) return [];
+  const prev=state.sessions.filter(x=>x.round<s.round).sort((a,b)=>b.round-a.round).slice(0,3);
+  return prev.flatMap(allExpressions);
+}
+function shuffleArray(arr){
+  const a=[...arr];
+  for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
+  return a;
+}
+function prepareReviewIfNeeded(n){
+  const s=getCurrent(); if(!s) return;
+  s.reviews ||= {1:{shuffle:[],audioKey:null,duration:0,completedAt:null},2:{shuffle:[],audioKey:null,duration:0,completedAt:null}};
+  s.reviews[n] ||= {shuffle:[],audioKey:null,duration:0,completedAt:null};
+  if(s.reviews[n].completedAt===undefined) s.reviews[n].completedAt=null;
+  if(!s.reviews[n].shuffle?.length){
+    s.reviews[n].shuffle=shuffleArray(prevThreeExpressions(s).map(x=>({id:x.id,ko:x.ko,en:x.en,source:x.source||'study'})));
+    localStorage.setItem(LS_KEY,JSON.stringify(state));
+  }
+}
+async function switchReview(n){
+  currentReviewNo=n; prepareReviewIfNeeded(n); await renderReview();
+}
+async function reshuffle(){
+  const s=getCurrent(); if(!s) return;
+  const r=s.reviews[currentReviewNo];
+  if(r.audioKey){
+    if(!confirm('현재 녹음이 있습니다. 다시 섞으면 현재 녹음도 삭제됩니다. 계속할까요?')) return;
+    await idbDelete(r.audioKey); r.audioKey=null; r.duration=0; r.completedAt=null;
+  }
+  r.shuffle=shuffleArray(prevThreeExpressions(s).map(x=>({id:x.id,ko:x.ko,en:x.en,source:x.source||'study'})));
+  saveState();
+}
+
+function weekdayKo(dateStr){
+  const [y,m,d]=dateStr.split('-').map(Number);
+  return ['일요일','월요일','화요일','수요일','목요일','금요일','토요일'][new Date(y,m-1,d).getDay()];
+}
+function displaySessionDate(dateStr){
+  return `${dateStr}, ${weekdayKo(dateStr)}`;
+}
+function formatDateTime(ts){
+  if(!ts) return '';
+  const d=new Date(ts);
+  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
+  const hh=String(d.getHours()).padStart(2,'0'), mm=String(d.getMinutes()).padStart(2,'0'), ss=String(d.getSeconds()).padStart(2,'0');
+  return `${y}-${m}-${day} ${hh}:${mm}:${ss}`;
+}
+
+function formatSec(sec){ sec=Math.max(0,Math.floor(sec||0)); return `${String(Math.floor(sec/60)).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}`; }
+
+
+function setRecordButtonsText(text){
+  document.querySelectorAll('.record-toggle').forEach(el=>el.textContent=text);
+}
+function setRecordTimers(text, active=false){
+  document.querySelectorAll('.record-timer').forEach(el=>{
+    el.textContent=text;
+    el.className='record-timer'+(active?' recording':'');
+  });
+}
+function setRecordControls(hasAudio){
+  document.querySelectorAll('.record-toggle').forEach(el=>el.style.display=hasAudio?'none':'inline-block');
+  document.querySelectorAll('.rerecord-toggle').forEach(el=>el.style.display=hasAudio?'inline-block':'none');
+  document.querySelectorAll('.delete-recording-toggle').forEach(el=>el.style.display=hasAudio?'inline-block':'none');
+}
+function clearAudioPlayers(){
+  document.querySelectorAll('.audio-player').forEach(ap=>{
+    ap.pause();
+    ap.style.display='none';
+    ap.removeAttribute('src');
+  });
+}
+
+async function toggleRecord(){
+  if(recorder && recorder.state==='recording'){ recorder.stop(); return; }
+  const s=getCurrent(); if(!s) return;
+  if(!navigator.mediaDevices?.getUserMedia){ alert('이 브라우저는 마이크 녹음을 지원하지 않습니다. Chrome/Edge 최신 버전을 사용해주세요.'); return; }
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+    chunks=[];
+    recorder=new MediaRecorder(stream);
+    recorder.ondataavailable=e=>{ if(e.data.size) chunks.push(e.data); };
+    recorder.onstop=async()=>{
+      clearInterval(timerInterval);
+      stream.getTracks().forEach(t=>t.stop());
+      const blob=new Blob(chunks,{type:recorder.mimeType||'audio/webm'});
+      const key=`audio_${s.id}_${currentReviewNo}`;
+      await idbPut(key,blob);
+      s.reviews[currentReviewNo].audioKey=key;
+      s.reviews[currentReviewNo].duration=(Date.now()-recordStartedAt)/1000;
+      s.reviews[currentReviewNo].completedAt=Date.now();
+      saveState();
+      recorder=null;
+      await renderReview();
+    };
+    recorder.start();
+    recordStartedAt=Date.now();
+    setRecordButtonsText('■ 녹음 종료 및 저장');
+    setRecordTimers('', true);
+    timerInterval=setInterval(()=>setRecordTimers('● '+formatSec((Date.now()-recordStartedAt)/1000)+' 녹음 중', true),500);
+  }catch(e){ alert('마이크 권한을 허용해야 녹음할 수 있습니다.'); }
+}
+async function rerecord(){
+  const s=getCurrent(); const r=s?.reviews?.[currentReviewNo]; if(!r) return;
+  if(r.audioKey) await idbDelete(r.audioKey);
+  r.audioKey=null; r.duration=0; r.completedAt=null; saveState(); await toggleRecord();
+}
+async function deleteRecording(){
+  const s=getCurrent(); const r=s?.reviews?.[currentReviewNo]; if(!r?.audioKey) return;
+  if(!confirm('이 녹음 파일을 삭제할까요?')) return;
+  await idbDelete(r.audioKey); r.audioKey=null; r.duration=0; r.completedAt=null; saveState();
+}
+
+function renderStart(){
+  const current=getCurrent();
+  const round=current?current.round:nextRound(), date=current?current.date:todayStr();
+  document.getElementById('heroRound').textContent=current?`${current.round}회차`:`${nextRound()}회차`;
+  document.getElementById('heroDate').textContent=displaySessionDate(current?current.date:todayStr());
+  const done=current?reviewDoneCount(current):0;
+  const hR=document.getElementById('heroReview');
+  hR.textContent=current?(done===2?'✓ 복습완료':done===1?'복습 1/2':'복습 미진행'):'새 회차 준비';
+  hR.className='pill '+(current?(done===2?'ok':done===1?'warn':''):'');
+  document.getElementById('heroStudy').textContent=`본 공부 ${current?.study?.length||0}개`;
+  document.getElementById('heroFree').textContent=`답답이 노트 ${current?.free?.length||0}개`;
+
+  const continueBtn=document.getElementById('continueBtn');
+  const newRoundBtn=document.getElementById('newRoundBtn');
+  if(current){
+    continueBtn.style.display='inline-block';
+    continueBtn.textContent=`${current.round}회차 계속하기`;
+    newRoundBtn.textContent=`+ ${nextRound()}회차 새로 시작하기`;
+  }else{
+    continueBtn.style.display='none';
+    newRoundBtn.textContent=`${nextRound()}회차 시작하기`;
+  }
+
+  const list=document.getElementById('sessionList');
+  const pager=document.getElementById('sessionPagination');
+  const sorted=[...state.sessions].sort((a,b)=>b.round-a.round);
+  const totalPages=Math.max(1,Math.ceil(sorted.length/SESSION_PAGE_SIZE));
+  if(sessionPage>totalPages) sessionPage=totalPages;
+  const start=(sessionPage-1)*SESSION_PAGE_SIZE;
+  const paged=sorted.slice(start,start+SESSION_PAGE_SIZE);
+  list.innerHTML=paged.length?paged.map(s=>{
+    const d=reviewDoneCount(s);
+    const reviewText=d===2?'<span class="complete-icon">✓</span><b style="color:#16865a">복습완료</b>':d===1?'복습 1/2':'복습 미진행';
+    return `<div class="session-row">
+      <div>
+        <div class="session-title">${s.round}회차 · ${displaySessionDate(s.date)}</div>
+        <div class="session-meta">${reviewText} · 본 공부 ${s.study?.length||0}개 · 답답이 노트 ${s.free?.length||0}개</div>
+      </div>
+      <div class="toolbar" style="justify-content:flex-end">
+        <button class="secondary" onclick="selectSession('${s.id}')">불러오기</button>
+        <button class="delete-x-btn" title="회차 삭제" aria-label="회차 삭제" onclick="deleteSession('${s.id}')">×</button>
+      </div>
+    </div>`;
+  }).join(''):`<div class="empty">아직 저장된 회차가 없습니다.</div>`;
+  if(sorted.length>SESSION_PAGE_SIZE){
+    let phtml=`<button class="page-btn" onclick="changeSessionPage(${sessionPage-1})" ${sessionPage===1?'disabled':''}>‹</button>`;
+    for(let p=1;p<=totalPages;p++){
+      phtml+=`<button class="page-btn ${p===sessionPage?'active':''}" onclick="changeSessionPage(${p})">${p}</button>`;
+    }
+    phtml+=`<button class="page-btn" onclick="changeSessionPage(${sessionPage+1})" ${sessionPage===totalPages?'disabled':''}>›</button>`;
+    pager.innerHTML=phtml;
+  }else pager.innerHTML='';
+}
+function changeSessionPage(p){ sessionPage=p; renderStart(); }
+
+async function renderReview(){
+  const s=getCurrent();
+  const badge=document.getElementById('reviewTabBadge');
+  if(!s){ badge.textContent='-'; return; }
+  const done=reviewDoneCount(s); badge.textContent=done===2?'✓ 완료':`${done}/2`;
+  document.getElementById('reviewBtn1').classList.toggle('active',currentReviewNo===1);
+  document.getElementById('reviewBtn2').classList.toggle('active',currentReviewNo===2);
+  prepareReviewIfNeeded(currentReviewNo);
+  const pool=prevThreeExpressions(s), r=s.reviews[currentReviewNo];
+  const empty=document.getElementById('reviewEmpty'), main=document.getElementById('reviewMain');
+  if(!pool.length){
+    empty.style.display='block'; main.style.display='none';
+    empty.textContent='복습할 이전 표현이 아직 없습니다. 2·3단계에서 표현을 등록한 뒤 다음 회차부터 복습할 수 있습니다.';
+    return;
+  }
+  empty.style.display='none'; main.style.display='block';
+  document.getElementById('reviewDesc').textContent=`최근 3회차에서 ${pool.length}개 표현을 불러왔습니다.`;
+  document.getElementById('reviewCount').textContent=`${r.shuffle.length}개 표현`;
+  document.getElementById('reviewStatus').textContent=r.audioKey?`✓ ${currentReviewNo}차 녹음 완료 (${formatSec(r.duration)}) (${formatDateTime(r.completedAt)})`:`${currentReviewNo}차 미완료`;
+  document.getElementById('reviewStatus').className='pill '+(r.audioKey?'ok':'');
+  document.getElementById('reviewList').innerHTML=r.shuffle.map(x=>`<div class="korean-item ${x.source==='free'?'free-source':''}">${escapeHtml(x.ko)}${x.source==='free'?'<span class="source-tag">답답이 노트</span>':''}</div>`).join('');
+  setRecordButtonsText('🎙 녹음하기');
+  setRecordTimers('');
+  clearAudioPlayers();
+  if(r.audioKey){
+    const blob=await idbGet(r.audioKey);
+    if(blob){
+      const url=URL.createObjectURL(blob);
+      document.querySelectorAll('.audio-player').forEach(ap=>{
+        ap.src=url;
+        ap.style.display='block';
+      });
+    }
+    setRecordControls(true);
+  }else{
+    setRecordControls(false);
+  }
+}
+
+function renderStage(kind){
+  const s=getCurrent(); if(!s) return '';
+  const title=kind==='study'?'② 본 공부':'③ 답답이 노트';
+  const arr=s[kind]||[];
+  const idPrefix=kind==='study'?'study':'free';
+  return `
+  <div class="card">
+    <h2>${title}</h2>
+    <p class="hint">Word 형식: <b>숫자. 한글 : 영어</b><br>앞의 숫자와 마침표는 자동으로 제거하며, 첫 번째 ':'를 한글/영어 구분자로 사용합니다.</p>
+    <div class="upload">
+      <b>📄 Word(.docx) 파일에서 가져오기</b><br>
+      <input type="file" accept=".docx" onchange="parseDocx(event,'${kind}')">
+      <div class="parse-status" id="${idPrefix}ParseStatus"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="toolbar" style="justify-content:space-between">
+      <h2 style="margin:0">등록 표현 <span style="color:var(--accent)">${arr.length}</span></h2>
+      ${arr.length?`<button class="danger" onclick="deleteAllExpressions('${kind}')">전체 삭제</button>`:''}
+    </div>
+    ${arr.length?`<div class="table-wrap"><table>
+      <thead><tr><th style="width:45%">한글</th><th style="width:45%">영어</th><th style="width:10%">관리</th></tr></thead>
+      <tbody>${arr.map((x,i)=>`<tr>
+        <td><input value="${attr(x.ko)}" onchange="editExpression('${kind}',${i},'ko',this.value)"></td>
+        <td><input value="${attr(x.en)}" onchange="editExpression('${kind}',${i},'en',this.value)"></td>
+        <td><button class="icon-btn" title="삭제" onclick="deleteExpression('${kind}',${i})">🗑</button></td>
+      </tr>`).join('')}</tbody>
+    </table></div>`:`<div class="empty" style="margin-top:14px">등록된 표현이 없습니다.</div>`}
+  </div>
+  <div class="card">
+    <h2>표현 직접 추가</h2>
+    <div class="add-grid">
+      <input id="${idPrefix}Ko" placeholder="한글 표현">
+      <input id="${idPrefix}En" placeholder="영어 표현">
+      <button class="primary" onclick="addExpression('${kind}')">+ 추가</button>
+    </div>
+  </div>`;
+}
+function editExpression(kind,i,field,value){ const s=getCurrent(); s[kind][i][field]=value.trim(); saveState(); }
+function deleteExpression(kind,i){ if(!confirm('이 표현을 삭제할까요?'))return; getCurrent()[kind].splice(i,1); saveState(); }
+function deleteAllExpressions(kind){
+  const s=getCurrent(); if(!s || !(s[kind]||[]).length) return;
+  const label=kind==='study'?'본 공부':'답답이 노트';
+  if(!confirm(`${label}에 등록된 표현 ${s[kind].length}개를 모두 삭제할까요?`)) return;
+  s[kind]=[];
+  saveState();
+}
+function addExpression(kind){
+  const p=kind==='study'?'study':'free';
+  const ko=document.getElementById(p+'Ko').value.trim(), en=document.getElementById(p+'En').value.trim();
+  if(!ko||!en){ alert('한글과 영어 표현을 모두 입력해주세요.'); return; }
+  getCurrent()[kind].push({id:newId(),ko,en}); saveState();
+  setTimeout(()=>{ document.getElementById(p+'Ko')?.focus(); },0);
+}
+async function parseDocx(event,kind){
+  const file=event.target.files?.[0]; if(!file) return;
+  const status=document.getElementById((kind==='study'?'study':'free')+'ParseStatus');
+  if(!window.mammoth){ status.textContent='Word 파서 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인해주세요.'; return; }
+  status.textContent='파일 읽는 중...';
+  try{
+    const ab=await file.arrayBuffer();
+    const result=await mammoth.extractRawText({arrayBuffer:ab});
+    const parsed=parseExpressionText(result.value);
+    if(!parsed.length){ status.textContent='인식된 표현이 없습니다. "숫자. 한글 : 영어" 형식을 확인해주세요.'; return; }
+    if(confirm(`${parsed.length}개 표현을 찾았습니다. 현재 ${kind==='study'?'본 공부':'답답이 노트'} 목록에 추가할까요?`)){
+      getCurrent()[kind].push(...parsed.map(x=>({id:newId(),...x})));
+      saveState();
+      status.textContent=`✓ ${parsed.length}개 표현을 추가했습니다.`;
+    }else status.textContent=`${parsed.length}개 표현을 찾았지만 추가하지 않았습니다.`;
+  }catch(e){
+    console.error(e); status.textContent='Word 파일을 읽는 중 오류가 발생했습니다.';
+  }
+  event.target.value='';
+}
+function parseExpressionText(text){
+  const lines=text.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+  const out=[];
+  for(let line of lines){
+    line=line.replace(/^\s*\d+\s*[.)]\s*/,'');
+    const idx=line.indexOf(':');
+    if(idx<1) continue;
+    const ko=line.slice(0,idx).trim(), en=line.slice(idx+1).trim();
+    if(ko&&en) out.push({ko,en});
+  }
+  return out;
+}
+function escapeHtml(s=''){return s.replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));}
+function attr(s=''){return escapeHtml(s);}
+
+
+function renderCurrentSessionUI(){
+  const s=getCurrent();
+  const bar=document.getElementById('currentSessionBar');
+  const studyCount=document.getElementById('studyTabCount');
+  const freeCount=document.getElementById('freeTabCount');
+
+  if(studyCount){
+    studyCount.textContent=s?`${s.study?.length||0}개`:'';
+    studyCount.style.display=s?'inline-flex':'none';
+  }
+  if(freeCount){
+    freeCount.textContent=s?`${s.free?.length||0}개`:'';
+    freeCount.style.display=s?'inline-flex':'none';
+  }
+
+  const activeTab=document.querySelector('.tab.active')?.dataset.tab;
+  if(s && activeTab!=='start'){
+    bar.classList.add('show');
+    document.getElementById('currentSessionRound').textContent=`${s.round}회차`;
+    document.getElementById('currentSessionDate').textContent=` · ${displaySessionDate(s.date)}`;
+  }else{
+    bar.classList.remove('show');
+  }
+}
+
+function renderAll(){
+  renderStart();
+  document.getElementById('studyContent').innerHTML=getCurrent()?renderStage('study'):'';
+  document.getElementById('freeContent').innerHTML=getCurrent()?renderStage('free'):'';
+  renderCurrentSessionUI();
+  renderReview();
+}
+function blobToDataURL(blob){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=()=>resolve(reader.result);
+    reader.onerror=()=>reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+function dataURLToBlob(dataURL){
+  const [meta,data]=dataURL.split(',');
+  const mime=(meta.match(/data:([^;]+)/)||[])[1]||'application/octet-stream';
+  const bytes=atob(data);
+  const arr=new Uint8Array(bytes.length);
+  for(let i=0;i<bytes.length;i++) arr[i]=bytes.charCodeAt(i);
+  return new Blob([arr],{type:mime});
+}
+async function exportData(){
+  try{
+    const audio={};
+    for(const s of state.sessions||[]){
+      for(const n of [1,2]){
+        const key=s.reviews?.[n]?.audioKey;
+        if(key && !audio[key]){
+          const blob=await idbGet(key);
+          if(blob) audio[key]=await blobToDataURL(blob);
         }
+      }
     }
+    const backup={
+      app:'daily-english-study',
+      version:2,
+      exportedAt:new Date().toISOString(),
+      state,
+      audio
+    };
+    const blob=new Blob([JSON.stringify(backup)],{type:'application/json'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=`daily-english-full-backup-${todayStr()}.json`;
+    a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  }catch(e){
+    console.error(e);
+    alert('백업 파일을 만드는 중 오류가 발생했습니다.');
+  }
+}
+async function restoreData(event){
+  const file=event.target.files?.[0];
+  if(!file) return;
+  try{
+    const parsed=JSON.parse(await file.text());
+    const restoredState=parsed?.state || parsed;
+    if(!restoredState || !Array.isArray(restoredState.sessions)) throw new Error('invalid backup');
+    if(!confirm('현재 브라우저의 데이터를 백업 파일 내용으로 교체할까요? 기존 데이터는 덮어씌워집니다.')) return;
 
-    document.getElementById('fileInput').addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        const reader = new FileReader();
-        reader.onload = function(evt) {
-            const data = evt.target.result;
-            const workbook = XLSX.read(data, { type: 'binary' });
-            const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
-            dbData = rows.map(row => ({ week: String(row[0]||'').trim(), word: String(row[1]||'').trim() }))
-                        .filter(item => item.week && item.word);
-            alert("파일 로드 완료!");
-            loadHistoryList();
-        };
-        reader.readAsBinaryString(file);
-    });
+    // Clear current audio store first.
+    await idbClear();
 
-    function createNewExam() {
-        const week = document.getElementById('weekInput').value.trim();
-        const requestedCount = parseInt(document.getElementById('countInput').value) || 40; // 입력값 없으면 40
-
-        if (dbData.length === 0) return alert("파일을 먼저 선택해주세요.");
-        if (!week) return alert("주차를 입력해주세요.");
-
-        // 해당 주차 단어 전체 필터링
-        let words = dbData.filter(item => item.week === week).map(item => item.word);
-        if (words.length === 0) return alert("해당 주차의 데이터가 없습니다.");
-
-        // 무작위로 섞기
-        words.sort(() => Math.random() - 0.5);
-
-        // 입력된 개수만큼 자르기 (데이터가 입력값보다 적으면 전체 사용)
-        const finalWords = words.slice(0, requestedCount);
-
-        let v = 1;
-        while (localStorage.getItem(`exam_${week}_v${v}`)) { v++; }
-        const examId = `exam_${week}_v${v}`;
-        const examData = {
-            id: examId, week: week, version: v,
-            words: finalWords,
-            answers: {}, results: {}, status: "진행중", score: null, submitDate: ""
-        };
-        localStorage.setItem(examId, JSON.stringify(examData));
-        
-        document.getElementById('setupBox').classList.add('collapsed');
-        const tBtn = document.getElementById('toggleSetupBtn');
-        tBtn.classList.add('show');
-        tBtn.innerText = "⚙️ 설정 열기";
-
-        renderExam(examId);
-        loadHistoryList();
-    }
-
-    function renderExam(examId) {
-        currentActiveId = examId;
-        const data = JSON.parse(localStorage.getItem(examId));
-        if(!data) return;
-
-        const is진행중 = (data.status === "진행중");
-        const is채점대기 = (data.status === "완료 - 채점대기");
-        const is완료 = (!is진행중 && !is채점대기);
-
-        document.getElementById('examTitle').innerText = `${data.week} (제 ${data.version}회차 - ${data.words.length}문항)`;
-        const sArea = document.getElementById('scoreArea');
-        if(is완료) { sArea.innerText = `최종 점수: ${data.score}점`; sArea.style.display="block"; }
-        else { sArea.style.display="none"; }
-        
-        let html = `<table><thead><tr><th width="60">번호</th><th width="35%">단어</th><th>뜻 입력</th>${!is진행중 ? '<th width="110">채점</th>' : ''}</tr></thead><tbody id="examTableBody">`;
-        
-        data.words.forEach((word, i) => {
-            const ans = data.answers[word] || "";
-            const res = data.results[word] || "O";
-            html += `<tr>
-                <td style="color: #888; text-align: center;">${i+1}</td>
-                <td class="word-cell">${word}</td>
-                <td class="input-cell"><input type="text" class="word-input" data-word="${word}" value="${ans}" ${!is진행중 ? 'disabled' : ''} onkeydown="handleKey(event, ${i})" onblur="saveValue('${word}', this.value)"></td>
-                ${!is진행중 ? `<td>
-                    <div class="grade-btn-group">
-                        <button type="button" class="ox-btn btn-o ${res==='O'?'active':''}" data-word="${word}" data-val="O" ${is완료?'disabled':''}>O</button>
-                        <button type="button" class="ox-btn btn-x ${res==='X'?'active':''}" data-word="${word}" data-val="X" ${is완료?'disabled':''}>X</button>
-                    </div>
-                </td>` : ''}
-            </tr>`;
-        });
-        
-        document.getElementById('examArea').innerHTML = html + `</tbody></table>`;
-        
-        const tableBody = document.getElementById('examTableBody');
-        if (tableBody) {
-            tableBody.onclick = function(e) {
-                const btn = e.target.closest('.ox-btn');
-                if (!btn || btn.disabled) return;
-                const word = btn.getAttribute('data-word');
-                const val = btn.getAttribute('data-val');
-                let currentData = JSON.parse(localStorage.getItem(currentActiveId));
-                currentData.results[word] = val;
-                localStorage.setItem(currentActiveId, JSON.stringify(currentData));
-                const group = btn.closest('.grade-btn-group');
-                group.querySelectorAll('.ox-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-            };
+    if(parsed.audio && typeof parsed.audio==='object'){
+      for(const [key,dataURL] of Object.entries(parsed.audio)){
+        if(typeof dataURL==='string' && dataURL.startsWith('data:')){
+          await idbPut(key,dataURLToBlob(dataURL));
         }
-
-        const btnArea = document.getElementById('actionBtns');
-        btnArea.innerHTML = is진행중 ? `<button type="button" class="btn-blue" onclick="submitExam()">제출하기</button>` : 
-                           (is채점대기 ? `<button type="button" class="btn-green" onclick="gradeExam()">채점완료</button>` : "");
-        if(is진행중) setTimeout(() => document.querySelectorAll('.word-input')[0]?.focus(), 100);
+      }
     }
 
-    function saveValue(word, val) {
-        let data = JSON.parse(localStorage.getItem(currentActiveId));
-        if(data && data.status === "진행중") { data.answers[word] = val; localStorage.setItem(currentActiveId, JSON.stringify(data)); }
-    }
+    state=restoredState;
+    const existingMax=(state.sessions||[]).reduce((m,s)=>Math.max(m,s.round||0),0);
+    state.maxRoundEver=Math.max(state.maxRoundEver||0,existingMax);
+    localStorage.setItem(LS_KEY,JSON.stringify(state));
+    currentSessionId=null;
+    sessionPage=1;
+    alert('백업 복원이 완료되었습니다.');
+    renderAll();
+    goTab('start');
+  }catch(e){
+    console.error(e);
+    alert('올바른 백업 파일이 아니거나 복원 중 오류가 발생했습니다.');
+  }finally{
+    event.target.value='';
+  }
+}
 
-    function handleKey(e, i) { if (e.key === 'Enter') { e.preventDefault(); const next = document.querySelectorAll('.word-input')[i+1]; if(next) next.focus(); } }
+/* IndexedDB for audio blobs */
+const DB_NAME='DailyEnglishAudioDB', STORE='audio';
+function openDB(){
+  return new Promise((resolve,reject)=>{
+    const req=indexedDB.open(DB_NAME,1);
+    req.onupgradeneeded=()=>{ if(!req.result.objectStoreNames.contains(STORE)) req.result.createObjectStore(STORE); };
+    req.onsuccess=()=>resolve(req.result); req.onerror=()=>reject(req.error);
+  });
+}
+async function idbPut(key,blob){ const db=await openDB(); return new Promise((res,rej)=>{ const tx=db.transaction(STORE,'readwrite'); tx.objectStore(STORE).put(blob,key); tx.oncomplete=res; tx.onerror=()=>rej(tx.error); });}
+async function idbGet(key){ const db=await openDB(); return new Promise((res,rej)=>{ const q=db.transaction(STORE).objectStore(STORE).get(key); q.onsuccess=()=>res(q.result); q.onerror=()=>rej(q.error); });}
+async function idbDelete(key){ const db=await openDB(); return new Promise((res,rej)=>{ const tx=db.transaction(STORE,'readwrite'); tx.objectStore(STORE).delete(key); tx.oncomplete=res; tx.onerror=()=>rej(tx.error); });}
+async function idbClear(){ const db=await openDB(); return new Promise((res,rej)=>{ const tx=db.transaction(STORE,'readwrite'); tx.objectStore(STORE).clear(); tx.oncomplete=res; tx.onerror=()=>rej(tx.error); });}
 
-    function submitExam() {
-        if(!confirm("제출하시면 수정이 불가합니다. 정말로 제출하시겠습니까?")) return;
-        let data = JSON.parse(localStorage.getItem(currentActiveId));
-        const now = new Date();
-        data.submitDate = `${now.getFullYear()}-${(now.getMonth()+1).toString().padStart(2,'0')}-${now.getDate().toString().padStart(2,'0')} ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
-        data.status = "완료 - 채점대기";
-        data.words.forEach(w => { if(!data.results[w]) data.results[w] = "O"; });
-        localStorage.setItem(currentActiveId, JSON.stringify(data));
-        renderExam(currentActiveId);
-        loadHistoryList();
-    }
-
-    function gradeExam() {
-        let data = JSON.parse(localStorage.getItem(currentActiveId));
-        const correct = data.words.filter(w => data.results[w] === "O").length;
-        data.score = Math.round((correct / data.words.length) * 100);
-        data.status = `완료 - ${data.score}점`;
-        localStorage.setItem(currentActiveId, JSON.stringify(data));
-        renderExam(currentActiveId);
-        loadHistoryList();
-        window.scrollTo(0,0);
-    }
-
-    function deleteExam(e, id) {
-        e.stopPropagation();
-        if(confirm("기록을 삭제하시겠습니까?")) {
-            localStorage.removeItem(id);
-            if(currentActiveId === id) { 
-                document.getElementById('examArea').innerHTML = ""; 
-                document.getElementById('examTitle').innerText = "";
-                document.getElementById('actionBtns').innerHTML = "";
-                document.getElementById('scoreArea').style.display="none";
-            }
-            loadHistoryList();
-        }
-    }
-
-    function loadHistoryList() {
-        const area = document.getElementById('historyButtons');
-        const keys = Object.keys(localStorage).filter(k => k.startsWith('exam_')).sort((a,b) => b.localeCompare(a));
-        if (keys.length === 0) { area.innerHTML = "<div style='padding:20px; color:#999; text-align:center;'>히스토리가 없습니다.</div>"; return; }
-        area.innerHTML = keys.map(k => {
-            const d = JSON.parse(localStorage.getItem(k));
-            let statusColor = d.status === "진행중" ? "#3182ce" : (d.status === "완료 - 채점대기" ? "#e67e22" : "#38a169");
-            return `<div class="history-item" onclick="renderExam('${k}')">
-                <div class="hist-info">
-                    <span class="hist-title">${d.week} (${d.version}회)</span>
-                    <span class="hist-date">${d.submitDate||'진행 중'}</span>
-                    <span class="hist-status" style="color:${statusColor}">${d.status}</span>
-                </div>
-                <div class="del-circle" onclick="deleteExam(event, '${k}')">×</div>
-            </div>`;
-        }).join('');
-    }
-    window.onload = loadHistoryList;
+renderAll();
 </script>
 </body>
 </html>
