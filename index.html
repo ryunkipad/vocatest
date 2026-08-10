@@ -23,7 +23,7 @@
     header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
     .brand{font-size:26px;font-weight:800;letter-spacing:-.6px}
     .sub{color:var(--muted);font-size:14px}
-    .tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}
+    .tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:20px}
     .tab{border:1px solid var(--line);background:#fff;border-radius:14px;padding:13px 16px;font-weight:700;color:var(--muted)}
     .tab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
     .tab .badge{display:inline-block;margin-left:7px;font-size:11px;padding:2px 7px;border-radius:999px;background:rgba(255,255,255,.25)}
@@ -114,6 +114,15 @@
     .tab-count-badge.zero{background:#eef0f3 !important;color:#9298a3 !important}
     .tab.active .tab-count-badge.zero{background:rgba(255,255,255,.20) !important;color:#e4e7ec !important}
     .current-session-round{font-size:18px}
+
+    .practice-list{display:grid;gap:9px;margin-top:16px}
+    .practice-item{border:1px solid #e9ebf2;border-radius:13px;background:#fafbfe;padding:14px 15px;cursor:pointer;transition:.18s ease}
+    .practice-item:hover{border-color:#cfd4ff;background:#f8f9ff}
+    .practice-ko{font-weight:750}
+    .practice-en{max-height:0;opacity:0;overflow:hidden;color:#4d5663;font-size:14px;line-height:1.55;
+      transform:translateY(-3px);transition:max-height .28s ease,opacity .25s ease,transform .25s ease,margin-top .25s ease}
+    .practice-item.revealed .practice-en{max-height:120px;opacity:1;transform:translateY(0);margin-top:7px}
+    .practice-item.free-source{background:#fff9df;border-color:#f1dfa0}
     .audio-row{display:flex;align-items:center;gap:10px;margin-top:12px}
     .audio-row audio{flex:1;margin:0}
     .audio-row .danger{flex:0 0 auto;white-space:nowrap}
@@ -124,6 +133,10 @@
     }
     .user-box{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
     .user-email{font-size:12px;color:var(--muted)}
+
+    @media(max-width:980px) and (min-width:761px){
+      .tabs{grid-template-columns:repeat(3,1fr)}
+    }
     @media(max-width:760px){
       .tabs{grid-template-columns:1fr 1fr}
       .hero-grid{grid-template-columns:1fr}
@@ -177,6 +190,7 @@
 
   <nav class="tabs">
     <button class="tab active" data-tab="start" onclick="goTab('start')">⌂ Home</button>
+    <button class="tab" data-tab="practice" onclick="goTab('practice')">[0단계] 연습하기</button>
     <button class="tab" data-tab="review" onclick="goTab('review')">[1단계] 복습하기 <span class="badge" id="reviewTabBadge">-</span></button>
     <button class="tab" data-tab="study" onclick="goTab('study')">[2단계] 본 공부 <span class="tab-count-badge" id="studyTabCount" style="display:none"></span></button>
     <button class="tab" data-tab="free" onclick="goTab('free')">[3단계] 답답이 노트 <span class="tab-count-badge" id="freeTabCount" style="display:none"></span></button>
@@ -216,6 +230,26 @@
     <div class="notice">
       <b>같은 날짜에도 여러 회차를 만들 수 있습니다.</b> 현재 회차는 계속 수정할 수 있고, [새로 시작하기]를 누르면 다음 번호의 회차가 생성됩니다.<br><br>
       <b>저장 방식:</b> 회차·표현·복습기록은 Supabase Database, 녹음파일은 private Storage에 저장됩니다. 같은 계정으로 로그인하면 여러 기기에서 동일한 데이터를 사용할 수 있습니다.
+    </div>
+  </section>
+
+  <section class="panel" id="panel-practice">
+    <div class="card">
+      <div class="review-head">
+        <div>
+          <h2>[0단계] 연습하기</h2>
+          <p class="hint" id="practiceDesc">최근 3회차 표현을 랜덤으로 연습합니다. 한글 표현을 누르면 영어 표현이 3초 동안 보입니다.</p>
+        </div>
+        <button class="secondary" onclick="reshufflePractice()">↻ 랜덤 섞기</button>
+      </div>
+
+      <div id="practiceEmpty" class="empty" style="display:none"></div>
+      <div id="practiceMain">
+        <div class="toolbar">
+          <span class="pill" id="practiceCount"></span>
+        </div>
+        <div class="practice-list" id="practiceList"></div>
+      </div>
     </div>
   </section>
 
@@ -298,6 +332,8 @@ let supabaseUser = null;
 let state = { sessions: [], maxRoundEver: 0 };
 let currentSessionId = null;
 let currentReviewNo = 1;
+let practiceShuffle = [];
+const practiceRevealTimers = new Map();
 let sessionPage = 1;
 const SESSION_PAGE_SIZE = 10;
 
@@ -543,7 +579,7 @@ async function startNewRound(){
   goTab('review');
 }
 function continueCurrent(){ if(getCurrent()) goTab('review'); }
-function selectSession(id){ currentSessionId=id; currentReviewNo=1; renderAll(); }
+function selectSession(id){ currentSessionId=id; currentReviewNo=1; practiceShuffle=[]; renderAll(); }
 
 async function deleteSession(id){
   const s=state.sessions.find(x=>x.id===id);
@@ -855,6 +891,67 @@ function parseExpressionText(text){
     if(ko&&en) out.push({ko,en});
   }
   return out;
+}
+
+
+// ---------------------------
+// 0단계 연습하기
+// ---------------------------
+function preparePractice(){
+  const s=getCurrent();
+  if(!s){ practiceShuffle=[]; return; }
+  const pool=prevThreeExpressions(s);
+  if(!practiceShuffle.length && pool.length){
+    practiceShuffle=shuffleArray(pool.map(x=>({id:x.id,ko:x.ko,en:x.en,source:x.source||'study'})));
+  }
+}
+function reshufflePractice(){
+  const s=getCurrent(); if(!s) return;
+  const pool=prevThreeExpressions(s);
+  practiceRevealTimers.forEach(timer=>clearTimeout(timer));
+  practiceRevealTimers.clear();
+  practiceShuffle=shuffleArray(pool.map(x=>({id:x.id,ko:x.ko,en:x.en,source:x.source||'study'})));
+  renderPractice();
+}
+function revealPracticeItem(index){
+  const el=document.querySelector(`.practice-item[data-index="${index}"]`);
+  if(!el) return;
+  const oldTimer=practiceRevealTimers.get(index);
+  if(oldTimer) clearTimeout(oldTimer);
+  el.classList.add('revealed');
+  const timer=setTimeout(()=>{
+    el.classList.remove('revealed');
+    practiceRevealTimers.delete(index);
+  },3000);
+  practiceRevealTimers.set(index,timer);
+}
+function renderPractice(){
+  const s=getCurrent();
+  if(!s) return;
+  preparePractice();
+  const pool=prevThreeExpressions(s);
+  const empty=document.getElementById('practiceEmpty');
+  const main=document.getElementById('practiceMain');
+  if(!empty || !main) return;
+
+  if(!pool.length){
+    empty.style.display='block';
+    main.style.display='none';
+    empty.textContent='연습할 이전 표현이 아직 없습니다. [2단계] 본 공부와 [3단계] 답답이 노트에 표현을 등록한 뒤 다음 회차부터 사용할 수 있습니다.';
+    return;
+  }
+
+  empty.style.display='none';
+  main.style.display='block';
+  document.getElementById('practiceDesc').textContent=`최근 3회차에서 ${pool.length}개 표현을 불러왔습니다. 한글을 누르면 영어가 3초 동안 보입니다.`;
+  document.getElementById('practiceCount').textContent=`${practiceShuffle.length}개 표현`;
+
+  document.getElementById('practiceList').innerHTML=practiceShuffle.map((x,i)=>`
+    <div class="practice-item ${x.source==='free'?'free-source':''}" data-index="${i}" onclick="revealPracticeItem(${i})">
+      <div class="practice-ko">${escapeHtml(x.ko)}</div>
+      <div class="practice-en">${escapeHtml(x.ko)} &nbsp; - &nbsp; <b>${escapeHtml(x.en)}</b></div>
+    </div>
+  `).join('');
 }
 
 // ---------------------------
@@ -1179,6 +1276,7 @@ function renderAll(){
   document.getElementById('studyContent').innerHTML=getCurrent()?renderStage('study'):'';
   document.getElementById('freeContent').innerHTML=getCurrent()?renderStage('free'):'';
   renderCurrentSessionUI();
+  renderPractice();
   renderReview();
 }
 
