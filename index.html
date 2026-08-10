@@ -7,6 +7,7 @@
   <meta name="description" content="한다면 하는 도리의 영어공부 - 회차별 영어 표현 학습" />
   <title>한다면 하는 도리의 영어공부</title>
   <script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root{
       --bg:#f6f7fb; --card:#fff; --line:#e7e9f0; --text:#22252b;
@@ -96,6 +97,18 @@
     .delete-x-btn{width:28px;height:28px;border:0;background:transparent;color:#a0a4ae;
       border-radius:8px;font-size:18px;line-height:1;padding:0;display:grid;place-items:center}
     .delete-x-btn:hover{background:#fff0f0;color:var(--danger)}
+
+    .auth-screen{min-height:70vh;display:grid;place-items:center}
+    .auth-card{width:min(420px,100%);background:#fff;border:1px solid var(--line);border-radius:20px;padding:28px;box-shadow:var(--shadow)}
+    .auth-card h1{font-size:25px;margin-bottom:8px}
+    .auth-card p{color:var(--muted);font-size:14px;line-height:1.6}
+    .auth-field{display:grid;gap:7px;margin-top:14px}
+    .auth-field label{font-size:13px;font-weight:800;color:#555b66}
+    .auth-field input{width:100%;border:1px solid var(--line);border-radius:11px;padding:12px 13px}
+    .auth-error{margin-top:12px;color:var(--danger);font-size:13px;min-height:18px}
+    .auth-actions{display:flex;gap:8px;margin-top:18px}
+    .user-box{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .user-email{font-size:12px;color:var(--muted)}
     @media(max-width:760px){
       .tabs{grid-template-columns:1fr 1fr}
       .hero-grid{grid-template-columns:1fr}
@@ -108,15 +121,42 @@
 </head>
 <body>
 <div class="app">
+  <section id="authScreen" class="auth-screen">
+    <div class="auth-card">
+      <h1>한다면 하는 도리의 영어공부</h1>
+      <p>Supabase 계정으로 로그인하면 영어공부 페이지를 사용할 수 있습니다.</p>
+
+      <div class="auth-field">
+        <label for="loginEmail">이메일</label>
+        <input id="loginEmail" type="email" autocomplete="username" placeholder="이메일 주소">
+      </div>
+
+      <div class="auth-field">
+        <label for="loginPassword">비밀번호</label>
+        <input id="loginPassword" type="password" autocomplete="current-password" placeholder="비밀번호">
+      </div>
+
+      <div class="auth-actions">
+        <button class="primary" style="width:100%" onclick="loginWithSupabase()">로그인</button>
+      </div>
+
+      <div class="auth-error" id="authError"></div>
+    </div>
+  </section>
+
+  <div id="mainApp" style="display:none">
   <header>
     <div>
       <div class="brand">한다면 하는 도리의 영어공부</div>
       <div class="sub">회차별 영어 표현 학습 · 로컬 프로토타입</div>
     </div>
     <div class="toolbar">
-      <button class="secondary" onclick="exportData()">전체 백업</button>
-      <button class="secondary" onclick="document.getElementById('restoreFile').click()">백업 복원</button>
-      <input id="restoreFile" type="file" accept=".json,application/json" style="display:none" onchange="restoreData(event)">
+      <div class="user-box">
+        <span class="user-email" id="loggedInEmail"></span>
+        <button class="secondary" onclick="logoutSupabase()">로그아웃</button>
+      </div>
+      <button class="secondary" onclick="refreshFromServer()">서버 새로고침</button>
+      <button class="secondary" onclick="exportData()">데이터 내보내기</button>
     </div>
   </header>
 
@@ -160,7 +200,7 @@
     </div>
     <div class="notice">
       <b>같은 날짜에도 여러 회차를 만들 수 있습니다.</b> 현재 회차는 계속 수정할 수 있고, [새로 시작하기]를 누르면 다음 번호의 회차가 생성됩니다.<br><br>
-      <b>저장 위치:</b> 회차·표현·녹음은 GitHub 서버가 아니라 현재 브라우저에 저장됩니다. 다른 PC/휴대폰과 자동 동기화되지 않으므로 중요한 기록은 우측 상단의 <b>전체 백업</b>을 이용하세요.
+      <b>저장 방식:</b> 회차·표현·복습기록은 Supabase Database, 녹음파일은 private Storage에 저장됩니다. 같은 계정으로 로그인하면 여러 기기에서 동일한 데이터를 사용할 수 있습니다.
     </div>
   </section>
 
@@ -217,134 +257,49 @@
   <section class="panel" id="panel-free">
     <div id="freeContent"></div>
   </section>
+  </div>
 </div>
 
+
 <script>
-const LS_KEY='dailyEnglishPrototype_v1';
-let state = loadState();
+// ============================================================
+// Supabase 연결 설정
+// 아래 두 값만 직접 입력하세요.
+// Secret key / service_role 키는 절대로 넣지 마세요.
+// ============================================================
+const SUPABASE_URL = 'https://nxtxrkrrzaqflhelpewe.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_FmoG2KA2QfKBEkQ3LcROTQ_hDNrXZdH';
+const STORAGE_BUCKET = 'recordings';
+
+const supabaseClient = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_PUBLISHABLE_KEY,
+  { auth: { persistSession: true, autoRefreshToken: true } }
+);
+
+let supabaseUser = null;
+let state = { sessions: [], maxRoundEver: 0 };
 let currentSessionId = null;
 let currentReviewNo = 1;
 let sessionPage = 1;
 const SESSION_PAGE_SIZE = 10;
-let recorder = null, chunks = [], recordStartedAt = 0, timerInterval = null;
+
+let recorder = null;
+let chunks = [];
+let recordStartedAt = 0;
+let timerInterval = null;
+let audioObjectUrls = [];
 
 function todayStr(){
   const d=new Date();
   const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
   return `${y}-${m}-${day}`;
 }
-function loadState(){
-  try{
-    const raw=localStorage.getItem(LS_KEY);
-    const loaded=raw?JSON.parse(raw):{sessions:[]};
-    loaded.sessions ||= [];
-    const existingMax=loaded.sessions.reduce((m,s)=>Math.max(m,s.round||0),0);
-    if(!Number.isFinite(loaded.maxRoundEver) || loaded.maxRoundEver<existingMax) loaded.maxRoundEver=existingMax;
-    return loaded;
-  }catch(e){ return {sessions:[],maxRoundEver:0}; }
-}
-function saveState(){ localStorage.setItem(LS_KEY,JSON.stringify(state)); renderAll(); }
-function nextRound(){ return (state.maxRoundEver||0)+1; }
-function getCurrent(){ return state.sessions.find(s=>s.id===currentSessionId)||null; }
-function newId(){ return crypto.randomUUID?crypto.randomUUID():(Date.now()+"_"+Math.random()); }
-
-function goTab(name){
-  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab===name));
-  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
-  document.getElementById('panel-'+name).classList.add('active');
-  if(name!=='start' && !getCurrent()){
-    alert('먼저 시작 화면에서 회차를 시작하거나 기존 회차를 선택해주세요.');
-    goTab('start'); return;
-  }
-  renderAll();
-}
-
-function startNewRound(){
-  const s={
-    id:newId(), round:nextRound(), date:todayStr(), createdAt:Date.now(),
-    study:[], free:[],
-    reviews:{
-      1:{shuffle:[], audioKey:null, duration:0, completedAt:null},
-      2:{shuffle:[], audioKey:null, duration:0, completedAt:null}
-    }
-  };
-  state.sessions.push(s);
-  state.maxRoundEver=Math.max(state.maxRoundEver||0,s.round);
-  currentSessionId=s.id;
-  currentReviewNo=1;
-  saveState();
-  prepareReviewIfNeeded(1);
-  goTab('review');
-}
-function continueCurrent(){
-  if(!getCurrent()) return;
-  goTab('review');
-}
-function selectSession(id){ currentSessionId=id; currentReviewNo=1; renderAll(); }
-async function deleteSession(id){
-  const s=state.sessions.find(x=>x.id===id);
-  if(!s) return;
-  if(!confirm(`${s.round}회차를 삭제할까요?\n\n삭제해도 다른 회차 번호는 당겨지지 않으며, ${s.round}회차 번호는 비어 있게 됩니다.`)) return;
-
-  // Delete associated audio blobs if present.
-  for(const n of [1,2]){
-    const key=s.reviews?.[n]?.audioKey;
-    if(key){
-      try{ await idbDelete(key); }catch(e){ console.warn(e); }
-    }
-  }
-
-  state.sessions=state.sessions.filter(x=>x.id!==id);
-  if(currentSessionId===id) currentSessionId=null;
-  saveState();
-}
-
-function reviewDoneCount(s){
-  if(!s) return 0;
-  return [1,2].filter(n=>s.reviews?.[n]?.audioKey).length;
-}
-function allExpressions(s){ return [...(s.study||[]).map(x=>({...x,source:'study'})),...(s.free||[]).map(x=>({...x,source:'free'}))]; }
-function prevThreeExpressions(s){
-  if(!s) return [];
-  const prev=state.sessions.filter(x=>x.round<s.round).sort((a,b)=>b.round-a.round).slice(0,3);
-  return prev.flatMap(allExpressions);
-}
-function shuffleArray(arr){
-  const a=[...arr];
-  for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
-  return a;
-}
-function prepareReviewIfNeeded(n){
-  const s=getCurrent(); if(!s) return;
-  s.reviews ||= {1:{shuffle:[],audioKey:null,duration:0,completedAt:null},2:{shuffle:[],audioKey:null,duration:0,completedAt:null}};
-  s.reviews[n] ||= {shuffle:[],audioKey:null,duration:0,completedAt:null};
-  if(s.reviews[n].completedAt===undefined) s.reviews[n].completedAt=null;
-  if(!s.reviews[n].shuffle?.length){
-    s.reviews[n].shuffle=shuffleArray(prevThreeExpressions(s).map(x=>({id:x.id,ko:x.ko,en:x.en,source:x.source||'study'})));
-    localStorage.setItem(LS_KEY,JSON.stringify(state));
-  }
-}
-async function switchReview(n){
-  currentReviewNo=n; prepareReviewIfNeeded(n); await renderReview();
-}
-async function reshuffle(){
-  const s=getCurrent(); if(!s) return;
-  const r=s.reviews[currentReviewNo];
-  if(r.audioKey){
-    if(!confirm('현재 녹음이 있습니다. 다시 섞으면 현재 녹음도 삭제됩니다. 계속할까요?')) return;
-    await idbDelete(r.audioKey); r.audioKey=null; r.duration=0; r.completedAt=null;
-  }
-  r.shuffle=shuffleArray(prevThreeExpressions(s).map(x=>({id:x.id,ko:x.ko,en:x.en,source:x.source||'study'})));
-  saveState();
-}
-
 function weekdayKo(dateStr){
   const [y,m,d]=dateStr.split('-').map(Number);
   return ['일요일','월요일','화요일','수요일','목요일','금요일','토요일'][new Date(y,m-1,d).getDay()];
 }
-function displaySessionDate(dateStr){
-  return `${dateStr}, ${weekdayKo(dateStr)}`;
-}
+function displaySessionDate(dateStr){ return `${dateStr}, ${weekdayKo(dateStr)}`; }
 function formatDateTime(ts){
   if(!ts) return '';
   const d=new Date(ts);
@@ -352,77 +307,278 @@ function formatDateTime(ts){
   const hh=String(d.getHours()).padStart(2,'0'), mm=String(d.getMinutes()).padStart(2,'0'), ss=String(d.getSeconds()).padStart(2,'0');
   return `${y}-${m}-${day} ${hh}:${mm}:${ss}`;
 }
-
-function formatSec(sec){ sec=Math.max(0,Math.floor(sec||0)); return `${String(Math.floor(sec/60)).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}`; }
-
-
-function setRecordButtonsText(text){
-  document.querySelectorAll('.record-toggle').forEach(el=>el.textContent=text);
+function formatSec(sec){
+  sec=Math.max(0,Math.floor(sec||0));
+  return `${String(Math.floor(sec/60)).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}`;
 }
-function setRecordTimers(text, active=false){
-  document.querySelectorAll('.record-timer').forEach(el=>{
-    el.textContent=text;
-    el.className='record-timer'+(active?' recording':'');
+function escapeHtml(s=''){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));}
+function attr(s=''){return escapeHtml(s);}
+function getCurrent(){ return state.sessions.find(s=>s.id===currentSessionId)||null; }
+function nextRound(){ return (state.maxRoundEver||0)+1; }
+function reviewDoneCount(s){ return [1,2].filter(n=>s?.reviews?.[n]?.audioPath).length; }
+function allExpressions(s){
+  return [
+    ...(s.study||[]).map(x=>({...x,source:'study'})),
+    ...(s.free||[]).map(x=>({...x,source:'free'}))
+  ];
+}
+function prevThreeExpressions(s){
+  if(!s) return [];
+  const prev=state.sessions
+    .filter(x=>x.round<s.round)
+    .sort((a,b)=>b.round-a.round)
+    .slice(0,3);
+  return prev.flatMap(allExpressions);
+}
+function shuffleArray(arr){
+  const a=[...arr];
+  for(let i=a.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [a[i],a[j]]=[a[j],a[i]];
+  }
+  return a;
+}
+function showAuthError(message=''){
+  const el=document.getElementById('authError');
+  if(el) el.textContent=message;
+}
+function reportError(prefix, error){
+  console.error(prefix, error);
+  const msg=error?.message ? `\n${error.message}` : '';
+  alert(`${prefix}${msg}`);
+}
+function cleanupAudioUrls(){
+  audioObjectUrls.forEach(url=>URL.revokeObjectURL(url));
+  audioObjectUrls=[];
+}
+function newReviewState(){
+  return { id:null, shuffle:[], audioPath:null, duration:0, completedAt:null };
+}
+
+async function loginWithSupabase(){
+  const email=document.getElementById('loginEmail').value.trim();
+  const password=document.getElementById('loginPassword').value;
+  if(!email || !password){ showAuthError('이메일과 비밀번호를 입력해주세요.'); return; }
+
+  showAuthError('로그인 중...');
+  const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+  if(error){
+    console.error(error);
+    showAuthError('로그인에 실패했습니다. 이메일과 비밀번호를 확인해주세요.');
+    return;
+  }
+  supabaseUser=data.user;
+  await showMainApp();
+}
+
+async function logoutSupabase(){
+  cleanupAudioUrls();
+  await supabaseClient.auth.signOut();
+  supabaseUser=null;
+  state={sessions:[],maxRoundEver:0};
+  currentSessionId=null;
+  document.getElementById('mainApp').style.display='none';
+  document.getElementById('authScreen').style.display='grid';
+  document.getElementById('loginPassword').value='';
+  showAuthError('');
+}
+
+async function showMainApp(){
+  document.getElementById('authScreen').style.display='none';
+  document.getElementById('mainApp').style.display='block';
+  document.getElementById('loggedInEmail').textContent=supabaseUser?.email||'';
+  await loadRemoteState();
+}
+
+async function initializeSupabaseAuth(){
+  const isConfigured =
+    !SUPABASE_URL.includes('여기에_') &&
+    !SUPABASE_PUBLISHABLE_KEY.includes('여기에_');
+  if(!isConfigured){
+    showAuthError('index.html에서 Project URL과 Publishable Key를 먼저 입력해주세요.');
+    return;
+  }
+
+  const { data, error } = await supabaseClient.auth.getSession();
+  if(error) console.error(error);
+
+  if(data?.session?.user){
+    supabaseUser=data.session.user;
+    await showMainApp();
+  }else{
+    document.getElementById('authScreen').style.display='grid';
+    document.getElementById('mainApp').style.display='none';
+  }
+
+  supabaseClient.auth.onAuthStateChange(async (_event, session)=>{
+    if(session?.user && !supabaseUser){
+      supabaseUser=session.user;
+      await showMainApp();
+    }
+    if(!session?.user){
+      supabaseUser=null;
+      document.getElementById('mainApp').style.display='none';
+      document.getElementById('authScreen').style.display='grid';
+    }
   });
 }
-function setRecordControls(hasAudio){
-  document.querySelectorAll('.record-toggle').forEach(el=>el.style.display=hasAudio?'none':'inline-block');
-  document.querySelectorAll('.rerecord-toggle').forEach(el=>el.style.display=hasAudio?'inline-block':'none');
-  document.querySelectorAll('.delete-recording-toggle').forEach(el=>el.style.display=hasAudio?'inline-block':'none');
-}
-function clearAudioPlayers(){
-  document.querySelectorAll('.audio-player').forEach(ap=>{
-    ap.pause();
-    ap.style.display='none';
-    ap.removeAttribute('src');
-  });
-}
 
-async function toggleRecord(){
-  if(recorder && recorder.state==='recording'){ recorder.stop(); return; }
-  const s=getCurrent(); if(!s) return;
-  if(!navigator.mediaDevices?.getUserMedia){ alert('이 브라우저는 마이크 녹음을 지원하지 않습니다. Chrome/Edge 최신 버전을 사용해주세요.'); return; }
-  try{
-    const stream=await navigator.mediaDevices.getUserMedia({audio:true});
-    chunks=[];
-    recorder=new MediaRecorder(stream);
-    recorder.ondataavailable=e=>{ if(e.data.size) chunks.push(e.data); };
-    recorder.onstop=async()=>{
-      clearInterval(timerInterval);
-      stream.getTracks().forEach(t=>t.stop());
-      const blob=new Blob(chunks,{type:recorder.mimeType||'audio/webm'});
-      const key=`audio_${s.id}_${currentReviewNo}`;
-      await idbPut(key,blob);
-      s.reviews[currentReviewNo].audioKey=key;
-      s.reviews[currentReviewNo].duration=(Date.now()-recordStartedAt)/1000;
-      s.reviews[currentReviewNo].completedAt=Date.now();
-      saveState();
-      recorder=null;
-      await renderReview();
+document.addEventListener('keydown', e=>{
+  if(e.key==='Enter' && document.getElementById('authScreen')?.style.display!=='none'){
+    loginWithSupabase();
+  }
+});
+
+// ---------------------------
+// Supabase ↔ 화면 상태 동기화
+// ---------------------------
+async function loadRemoteState(){
+  if(!supabaseUser) return;
+
+  const [sessionsRes, maxRoundRes, expressionsRes, reviewsRes] = await Promise.all([
+    supabaseClient
+      .from('sessions')
+      .select('id, round, study_date, created_at, deleted_at')
+      .is('deleted_at', null)
+      .order('round', {ascending:true}),
+    supabaseClient
+      .from('sessions')
+      .select('round')
+      .order('round', {ascending:false})
+      .limit(1),
+    supabaseClient
+      .from('expressions')
+      .select('id, session_id, expression_type, korean, english, created_at, updated_at'),
+    supabaseClient
+      .from('reviews')
+      .select('id, session_id, review_no, shuffle_data, duration_seconds, recorded_at, audio_path, created_at')
+  ]);
+
+  const firstError=sessionsRes.error||maxRoundRes.error||expressionsRes.error||reviewsRes.error;
+  if(firstError){ reportError('Supabase 데이터를 불러오지 못했습니다.', firstError); return; }
+
+  const expressions=expressionsRes.data||[];
+  const reviews=reviewsRes.data||[];
+
+  state.sessions=(sessionsRes.data||[]).map(row=>{
+    const ownExp=expressions.filter(x=>x.session_id===row.id);
+    const ownReviews=reviews.filter(x=>x.session_id===row.id);
+    const reviewMap={1:newReviewState(),2:newReviewState()};
+
+    ownReviews.forEach(r=>{
+      reviewMap[r.review_no]={
+        id:r.id,
+        shuffle:Array.isArray(r.shuffle_data)?r.shuffle_data:[],
+        audioPath:r.audio_path||null,
+        duration:r.duration_seconds||0,
+        completedAt:r.recorded_at?new Date(r.recorded_at).getTime():null
+      };
+    });
+
+    return {
+      id:row.id,
+      round:row.round,
+      date:row.study_date,
+      createdAt:row.created_at,
+      study:ownExp.filter(x=>x.expression_type==='study').map(x=>({id:x.id,ko:x.korean,en:x.english})),
+      free:ownExp.filter(x=>x.expression_type==='free').map(x=>({id:x.id,ko:x.korean,en:x.english})),
+      reviews:reviewMap
     };
-    recorder.start();
-    recordStartedAt=Date.now();
-    setRecordButtonsText('■ 녹음 종료 및 저장');
-    setRecordTimers('', true);
-    timerInterval=setInterval(()=>setRecordTimers('● '+formatSec((Date.now()-recordStartedAt)/1000)+' 녹음 중', true),500);
-  }catch(e){ alert('마이크 권한을 허용해야 녹음할 수 있습니다.'); }
+  });
+
+  state.maxRoundEver=maxRoundRes.data?.[0]?.round||0;
+
+  if(currentSessionId && !state.sessions.some(s=>s.id===currentSessionId)) currentSessionId=null;
+  if(!currentSessionId && state.sessions.length){
+    currentSessionId=[...state.sessions].sort((a,b)=>b.round-a.round)[0].id;
+  }
+
+  renderAll();
 }
-async function rerecord(){
-  const s=getCurrent(); const r=s?.reviews?.[currentReviewNo]; if(!r) return;
-  if(r.audioKey) await idbDelete(r.audioKey);
-  r.audioKey=null; r.duration=0; r.completedAt=null; saveState(); await toggleRecord();
+
+async function refreshFromServer(){
+  await loadRemoteState();
 }
-async function deleteRecording(){
-  const s=getCurrent(); const r=s?.reviews?.[currentReviewNo]; if(!r?.audioKey) return;
-  if(!confirm('이 녹음 파일을 삭제할까요?')) return;
-  await idbDelete(r.audioKey); r.audioKey=null; r.duration=0; r.completedAt=null; saveState();
+
+async function startNewRound(){
+  if(!supabaseUser) return;
+  const round=nextRound();
+  const { data, error }=await supabaseClient
+    .from('sessions')
+    .insert({
+      user_id:supabaseUser.id,
+      round,
+      study_date:todayStr()
+    })
+    .select('id, round, study_date, created_at')
+    .single();
+
+  if(error){ reportError('새 회차를 만들지 못했습니다.', error); return; }
+
+  state.maxRoundEver=Math.max(state.maxRoundEver||0,data.round);
+  state.sessions.push({
+    id:data.id, round:data.round, date:data.study_date, createdAt:data.created_at,
+    study:[], free:[], reviews:{1:newReviewState(),2:newReviewState()}
+  });
+  currentSessionId=data.id;
+  currentReviewNo=1;
+  renderAll();
+  goTab('review');
+}
+function continueCurrent(){ if(getCurrent()) goTab('review'); }
+function selectSession(id){ currentSessionId=id; currentReviewNo=1; renderAll(); }
+
+async function deleteSession(id){
+  const s=state.sessions.find(x=>x.id===id);
+  if(!s) return;
+  if(!confirm(`${s.round}회차를 삭제할까요?\n\n삭제해도 다른 회차 번호는 당겨지지 않으며, ${s.round}회차 번호는 비어 있게 됩니다.`)) return;
+
+  const paths=[1,2].map(n=>s.reviews?.[n]?.audioPath).filter(Boolean);
+  if(paths.length){
+    const { error:storageError }=await supabaseClient.storage.from(STORAGE_BUCKET).remove(paths);
+    if(storageError){ reportError('녹음파일 삭제 중 오류가 발생했습니다.', storageError); return; }
+  }
+
+  const { error:e1 }=await supabaseClient.from('expressions').delete().eq('session_id',id);
+  if(e1){ reportError('표현 데이터 삭제 중 오류가 발생했습니다.', e1); return; }
+
+  const { error:e2 }=await supabaseClient.from('reviews').delete().eq('session_id',id);
+  if(e2){ reportError('복습 데이터 삭제 중 오류가 발생했습니다.', e2); return; }
+
+  const { error:e3 }=await supabaseClient
+    .from('sessions')
+    .update({deleted_at:new Date().toISOString()})
+    .eq('id',id);
+  if(e3){ reportError('회차 삭제 중 오류가 발생했습니다.', e3); return; }
+
+  state.sessions=state.sessions.filter(x=>x.id!==id);
+  if(currentSessionId===id){
+    currentSessionId=state.sessions.length?[...state.sessions].sort((a,b)=>b.round-a.round)[0].id:null;
+  }
+  renderAll();
+}
+
+// ---------------------------
+// 탭 / 렌더링
+// ---------------------------
+function goTab(name){
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab===name));
+  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+  document.getElementById('panel-'+name).classList.add('active');
+
+  if(name!=='start' && !getCurrent()){
+    alert('먼저 시작 화면에서 회차를 시작하거나 기존 회차를 선택해주세요.');
+    goTab('start');
+    return;
+  }
+  renderAll();
 }
 
 function renderStart(){
   const current=getCurrent();
-  const round=current?current.round:nextRound(), date=current?current.date:todayStr();
   document.getElementById('heroRound').textContent=current?`${current.round}회차`:`${nextRound()}회차`;
   document.getElementById('heroDate').textContent=displaySessionDate(current?current.date:todayStr());
+
   const done=current?reviewDoneCount(current):0;
   const hR=document.getElementById('heroReview');
   hR.textContent=current?(done===2?'✓ 복습완료':done===1?'복습 1/2':'복습 미진행'):'새 회차 준비';
@@ -448,9 +604,13 @@ function renderStart(){
   if(sessionPage>totalPages) sessionPage=totalPages;
   const start=(sessionPage-1)*SESSION_PAGE_SIZE;
   const paged=sorted.slice(start,start+SESSION_PAGE_SIZE);
+
   list.innerHTML=paged.length?paged.map(s=>{
     const d=reviewDoneCount(s);
-    const reviewText=d===2?'<span class="complete-icon">✓</span><b style="color:#16865a">복습완료</b>':d===1?'복습 1/2':'복습 미진행';
+    const reviewText=d===2
+      ?'<span class="complete-icon">✓</span><b style="color:#16865a">복습완료</b>'
+      :d===1?'복습 1/2':'복습 미진행';
+
     return `<div class="session-row">
       <div>
         <div class="session-title">${s.round}회차 · ${displaySessionDate(s.date)}</div>
@@ -462,6 +622,7 @@ function renderStart(){
       </div>
     </div>`;
   }).join(''):`<div class="empty">아직 저장된 회차가 없습니다.</div>`;
+
   if(sorted.length>SESSION_PAGE_SIZE){
     let phtml=`<button class="page-btn" onclick="changeSessionPage(${sessionPage-1})" ${sessionPage===1?'disabled':''}>‹</button>`;
     for(let p=1;p<=totalPages;p++){
@@ -472,135 +633,6 @@ function renderStart(){
   }else pager.innerHTML='';
 }
 function changeSessionPage(p){ sessionPage=p; renderStart(); }
-
-async function renderReview(){
-  const s=getCurrent();
-  const badge=document.getElementById('reviewTabBadge');
-  if(!s){ badge.textContent='-'; return; }
-  const done=reviewDoneCount(s); badge.textContent=done===2?'✓ 완료':`${done}/2`;
-  document.getElementById('reviewBtn1').classList.toggle('active',currentReviewNo===1);
-  document.getElementById('reviewBtn2').classList.toggle('active',currentReviewNo===2);
-  prepareReviewIfNeeded(currentReviewNo);
-  const pool=prevThreeExpressions(s), r=s.reviews[currentReviewNo];
-  const empty=document.getElementById('reviewEmpty'), main=document.getElementById('reviewMain');
-  if(!pool.length){
-    empty.style.display='block'; main.style.display='none';
-    empty.textContent='복습할 이전 표현이 아직 없습니다. 2·3단계에서 표현을 등록한 뒤 다음 회차부터 복습할 수 있습니다.';
-    return;
-  }
-  empty.style.display='none'; main.style.display='block';
-  document.getElementById('reviewDesc').textContent=`최근 3회차에서 ${pool.length}개 표현을 불러왔습니다.`;
-  document.getElementById('reviewCount').textContent=`${r.shuffle.length}개 표현`;
-  document.getElementById('reviewStatus').textContent=r.audioKey?`✓ ${currentReviewNo}차 녹음 완료 (${formatSec(r.duration)}) (${formatDateTime(r.completedAt)})`:`${currentReviewNo}차 미완료`;
-  document.getElementById('reviewStatus').className='pill '+(r.audioKey?'ok':'');
-  document.getElementById('reviewList').innerHTML=r.shuffle.map(x=>`<div class="korean-item ${x.source==='free'?'free-source':''}">${escapeHtml(x.ko)}${x.source==='free'?'<span class="source-tag">답답이 노트</span>':''}</div>`).join('');
-  setRecordButtonsText('🎙 녹음하기');
-  setRecordTimers('');
-  clearAudioPlayers();
-  if(r.audioKey){
-    const blob=await idbGet(r.audioKey);
-    if(blob){
-      const url=URL.createObjectURL(blob);
-      document.querySelectorAll('.audio-player').forEach(ap=>{
-        ap.src=url;
-        ap.style.display='block';
-      });
-    }
-    setRecordControls(true);
-  }else{
-    setRecordControls(false);
-  }
-}
-
-function renderStage(kind){
-  const s=getCurrent(); if(!s) return '';
-  const title=kind==='study'?'② 본 공부':'③ 답답이 노트';
-  const arr=s[kind]||[];
-  const idPrefix=kind==='study'?'study':'free';
-  return `
-  <div class="card">
-    <h2>${title}</h2>
-    <p class="hint">Word 형식: <b>숫자. 한글 : 영어</b><br>앞의 숫자와 마침표는 자동으로 제거하며, 첫 번째 ':'를 한글/영어 구분자로 사용합니다.</p>
-    <div class="upload">
-      <b>📄 Word(.docx) 파일에서 가져오기</b><br>
-      <input type="file" accept=".docx" onchange="parseDocx(event,'${kind}')">
-      <div class="parse-status" id="${idPrefix}ParseStatus"></div>
-    </div>
-  </div>
-  <div class="card">
-    <div class="toolbar" style="justify-content:space-between">
-      <h2 style="margin:0">등록 표현 <span style="color:var(--accent)">${arr.length}</span></h2>
-      ${arr.length?`<button class="danger" onclick="deleteAllExpressions('${kind}')">전체 삭제</button>`:''}
-    </div>
-    ${arr.length?`<div class="table-wrap"><table>
-      <thead><tr><th style="width:45%">한글</th><th style="width:45%">영어</th><th style="width:10%">관리</th></tr></thead>
-      <tbody>${arr.map((x,i)=>`<tr>
-        <td><input value="${attr(x.ko)}" onchange="editExpression('${kind}',${i},'ko',this.value)"></td>
-        <td><input value="${attr(x.en)}" onchange="editExpression('${kind}',${i},'en',this.value)"></td>
-        <td><button class="icon-btn" title="삭제" onclick="deleteExpression('${kind}',${i})">🗑</button></td>
-      </tr>`).join('')}</tbody>
-    </table></div>`:`<div class="empty" style="margin-top:14px">등록된 표현이 없습니다.</div>`}
-  </div>
-  <div class="card">
-    <h2>표현 직접 추가</h2>
-    <div class="add-grid">
-      <input id="${idPrefix}Ko" placeholder="한글 표현">
-      <input id="${idPrefix}En" placeholder="영어 표현">
-      <button class="primary" onclick="addExpression('${kind}')">+ 추가</button>
-    </div>
-  </div>`;
-}
-function editExpression(kind,i,field,value){ const s=getCurrent(); s[kind][i][field]=value.trim(); saveState(); }
-function deleteExpression(kind,i){ if(!confirm('이 표현을 삭제할까요?'))return; getCurrent()[kind].splice(i,1); saveState(); }
-function deleteAllExpressions(kind){
-  const s=getCurrent(); if(!s || !(s[kind]||[]).length) return;
-  const label=kind==='study'?'본 공부':'답답이 노트';
-  if(!confirm(`${label}에 등록된 표현 ${s[kind].length}개를 모두 삭제할까요?`)) return;
-  s[kind]=[];
-  saveState();
-}
-function addExpression(kind){
-  const p=kind==='study'?'study':'free';
-  const ko=document.getElementById(p+'Ko').value.trim(), en=document.getElementById(p+'En').value.trim();
-  if(!ko||!en){ alert('한글과 영어 표현을 모두 입력해주세요.'); return; }
-  getCurrent()[kind].push({id:newId(),ko,en}); saveState();
-  setTimeout(()=>{ document.getElementById(p+'Ko')?.focus(); },0);
-}
-async function parseDocx(event,kind){
-  const file=event.target.files?.[0]; if(!file) return;
-  const status=document.getElementById((kind==='study'?'study':'free')+'ParseStatus');
-  if(!window.mammoth){ status.textContent='Word 파서 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인해주세요.'; return; }
-  status.textContent='파일 읽는 중...';
-  try{
-    const ab=await file.arrayBuffer();
-    const result=await mammoth.extractRawText({arrayBuffer:ab});
-    const parsed=parseExpressionText(result.value);
-    if(!parsed.length){ status.textContent='인식된 표현이 없습니다. "숫자. 한글 : 영어" 형식을 확인해주세요.'; return; }
-    if(confirm(`${parsed.length}개 표현을 찾았습니다. 현재 ${kind==='study'?'본 공부':'답답이 노트'} 목록에 추가할까요?`)){
-      getCurrent()[kind].push(...parsed.map(x=>({id:newId(),...x})));
-      saveState();
-      status.textContent=`✓ ${parsed.length}개 표현을 추가했습니다.`;
-    }else status.textContent=`${parsed.length}개 표현을 찾았지만 추가하지 않았습니다.`;
-  }catch(e){
-    console.error(e); status.textContent='Word 파일을 읽는 중 오류가 발생했습니다.';
-  }
-  event.target.value='';
-}
-function parseExpressionText(text){
-  const lines=text.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
-  const out=[];
-  for(let line of lines){
-    line=line.replace(/^\s*\d+\s*[.)]\s*/,'');
-    const idx=line.indexOf(':');
-    if(idx<1) continue;
-    const ko=line.slice(0,idx).trim(), en=line.slice(idx+1).trim();
-    if(ko&&en) out.push({ko,en});
-  }
-  return out;
-}
-function escapeHtml(s=''){return s.replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));}
-function attr(s=''){return escapeHtml(s);}
-
 
 function renderCurrentSessionUI(){
   const s=getCurrent();
@@ -627,6 +659,520 @@ function renderCurrentSessionUI(){
   }
 }
 
+// ---------------------------
+// 표현 CRUD + Word 파싱
+// ---------------------------
+function renderStage(kind){
+  const s=getCurrent(); if(!s) return '';
+  const title=kind==='study'?'② 본 공부':'③ 답답이 노트';
+  const arr=s[kind]||[];
+  const idPrefix=kind==='study'?'study':'free';
+
+  return `
+  <div class="card">
+    <h2>${title}</h2>
+    <p class="hint">Word 형식: <b>숫자. 한글 : 영어</b><br>앞의 숫자와 마침표는 자동으로 제거하며, 첫 번째 ':'를 한글/영어 구분자로 사용합니다.</p>
+    <div class="upload">
+      <b>📄 Word(.docx) 파일에서 가져오기</b><br>
+      <input type="file" accept=".docx" onchange="parseDocx(event,'${kind}')">
+      <div class="parse-status" id="${idPrefix}ParseStatus"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="toolbar" style="justify-content:space-between">
+      <h2 style="margin:0">등록 표현 <span style="color:var(--accent)">${arr.length}</span></h2>
+      ${arr.length?`<button class="danger" onclick="deleteAllExpressions('${kind}')">전체 삭제</button>`:''}
+    </div>
+
+    ${arr.length?`<div class="table-wrap"><table>
+      <thead><tr><th style="width:45%">한글</th><th style="width:45%">영어</th><th style="width:10%">관리</th></tr></thead>
+      <tbody>${arr.map((x,i)=>`<tr>
+        <td><input value="${attr(x.ko)}" onchange="editExpression('${kind}',${i},'ko',this.value)"></td>
+        <td><input value="${attr(x.en)}" onchange="editExpression('${kind}',${i},'en',this.value)"></td>
+        <td><button class="icon-btn" title="삭제" onclick="deleteExpression('${kind}',${i})">🗑</button></td>
+      </tr>`).join('')}</tbody>
+    </table></div>`:`<div class="empty" style="margin-top:14px">등록된 표현이 없습니다.</div>`}
+  </div>
+
+  <div class="card">
+    <h2>표현 직접 추가</h2>
+    <div class="add-grid">
+      <input id="${idPrefix}Ko" placeholder="한글 표현">
+      <input id="${idPrefix}En" placeholder="영어 표현">
+      <button class="primary" onclick="addExpression('${kind}')">+ 추가</button>
+    </div>
+  </div>`;
+}
+
+async function addExpression(kind){
+  const s=getCurrent(); if(!s) return;
+  const p=kind==='study'?'study':'free';
+  const ko=document.getElementById(p+'Ko').value.trim();
+  const en=document.getElementById(p+'En').value.trim();
+  if(!ko||!en){ alert('한글과 영어 표현을 모두 입력해주세요.'); return; }
+
+  const { data, error }=await supabaseClient
+    .from('expressions')
+    .insert({
+      user_id:supabaseUser.id,
+      session_id:s.id,
+      expression_type:kind,
+      korean:ko,
+      english:en
+    })
+    .select('id, korean, english')
+    .single();
+
+  if(error){ reportError('표현을 추가하지 못했습니다.', error); return; }
+  s[kind].push({id:data.id,ko:data.korean,en:data.english});
+  renderAll();
+}
+
+async function editExpression(kind,i,field,value){
+  const s=getCurrent(); const item=s?.[kind]?.[i]; if(!item) return;
+  const clean=value.trim();
+  if(!clean){ alert('빈 표현으로 저장할 수 없습니다.'); await loadRemoteState(); return; }
+
+  const column=field==='ko'?'korean':'english';
+  const { error }=await supabaseClient
+    .from('expressions')
+    .update({[column]:clean,updated_at:new Date().toISOString()})
+    .eq('id',item.id);
+
+  if(error){ reportError('표현을 수정하지 못했습니다.', error); await loadRemoteState(); return; }
+  item[field]=clean;
+}
+
+async function deleteExpression(kind,i){
+  const s=getCurrent(); const item=s?.[kind]?.[i]; if(!item) return;
+  if(!confirm('이 표현을 삭제할까요?')) return;
+
+  const { error }=await supabaseClient.from('expressions').delete().eq('id',item.id);
+  if(error){ reportError('표현을 삭제하지 못했습니다.', error); return; }
+
+  s[kind].splice(i,1);
+  renderAll();
+}
+
+async function deleteAllExpressions(kind){
+  const s=getCurrent(); if(!s || !(s[kind]||[]).length) return;
+  const label=kind==='study'?'본 공부':'답답이 노트';
+  if(!confirm(`${label}에 등록된 표현 ${s[kind].length}개를 모두 삭제할까요?`)) return;
+
+  const { error }=await supabaseClient
+    .from('expressions')
+    .delete()
+    .eq('session_id',s.id)
+    .eq('expression_type',kind);
+
+  if(error){ reportError('표현 전체삭제에 실패했습니다.', error); return; }
+  s[kind]=[];
+  renderAll();
+}
+
+async function parseDocx(event,kind){
+  const file=event.target.files?.[0]; if(!file) return;
+  const status=document.getElementById((kind==='study'?'study':'free')+'ParseStatus');
+
+  if(!window.mammoth){
+    status.textContent='Word 파서 라이브러리를 불러오지 못했습니다.';
+    return;
+  }
+
+  status.textContent='파일 읽는 중...';
+  try{
+    const ab=await file.arrayBuffer();
+    const result=await mammoth.extractRawText({arrayBuffer:ab});
+    const parsed=parseExpressionText(result.value);
+
+    if(!parsed.length){
+      status.textContent='인식된 표현이 없습니다. "숫자. 한글 : 영어" 형식을 확인해주세요.';
+      return;
+    }
+
+    if(!confirm(`${parsed.length}개 표현을 찾았습니다. 현재 ${kind==='study'?'본 공부':'답답이 노트'} 목록에 추가할까요?`)){
+      status.textContent=`${parsed.length}개 표현을 찾았지만 추가하지 않았습니다.`;
+      return;
+    }
+
+    const s=getCurrent();
+    const rows=parsed.map(x=>({
+      user_id:supabaseUser.id,
+      session_id:s.id,
+      expression_type:kind,
+      korean:x.ko,
+      english:x.en
+    }));
+
+    const { data, error }=await supabaseClient
+      .from('expressions')
+      .insert(rows)
+      .select('id, korean, english');
+
+    if(error) throw error;
+
+    s[kind].push(...(data||[]).map(x=>({id:x.id,ko:x.korean,en:x.english})));
+    renderAll();
+    const refreshedStatus=document.getElementById((kind==='study'?'study':'free')+'ParseStatus');
+    if(refreshedStatus) refreshedStatus.textContent=`✓ ${data?.length||0}개 표현을 추가했습니다.`;
+  }catch(e){
+    console.error(e);
+    if(status) status.textContent='Word 파일을 읽거나 저장하는 중 오류가 발생했습니다.';
+  }finally{
+    event.target.value='';
+  }
+}
+function parseExpressionText(text){
+  const lines=text.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+  const out=[];
+  for(let line of lines){
+    line=line.replace(/^\s*\d+\s*[.)]\s*/,'');
+    const idx=line.indexOf(':');
+    if(idx<1) continue;
+    const ko=line.slice(0,idx).trim();
+    const en=line.slice(idx+1).trim();
+    if(ko&&en) out.push({ko,en});
+  }
+  return out;
+}
+
+// ---------------------------
+// 복습 / 셔플 / 녹음
+// ---------------------------
+async function ensureReviewRow(n){
+  const s=getCurrent(); if(!s) return null;
+  s.reviews ||= {1:newReviewState(),2:newReviewState()};
+  s.reviews[n] ||= newReviewState();
+  const r=s.reviews[n];
+
+  if(!r.shuffle?.length){
+    r.shuffle=shuffleArray(
+      prevThreeExpressions(s).map(x=>({id:x.id,ko:x.ko,en:x.en,source:x.source||'study'}))
+    );
+
+    if(r.shuffle.length){
+      const payload={
+        user_id:supabaseUser.id,
+        session_id:s.id,
+        review_no:n,
+        shuffle_data:r.shuffle
+      };
+
+      const { data, error }=await supabaseClient
+        .from('reviews')
+        .upsert(payload,{onConflict:'session_id,review_no'})
+        .select('id')
+        .single();
+
+      if(error){ reportError('복습 목록을 저장하지 못했습니다.', error); return null; }
+      r.id=data.id;
+    }
+  }
+  return r;
+}
+
+async function switchReview(n){
+  currentReviewNo=n;
+  await renderReview();
+}
+
+async function reshuffle(){
+  const s=getCurrent(); if(!s) return;
+  const r=await ensureReviewRow(currentReviewNo);
+  if(!r) return;
+
+  if(r.audioPath){
+    if(!confirm('현재 녹음이 있습니다. 다시 섞으면 현재 녹음도 삭제됩니다. 계속할까요?')) return;
+    const { error:removeError }=await supabaseClient.storage.from(STORAGE_BUCKET).remove([r.audioPath]);
+    if(removeError){ reportError('기존 녹음을 삭제하지 못했습니다.', removeError); return; }
+  }
+
+  const nextShuffle=shuffleArray(
+    prevThreeExpressions(s).map(x=>({id:x.id,ko:x.ko,en:x.en,source:x.source||'study'}))
+  );
+
+  const payload={
+    user_id:supabaseUser.id,
+    session_id:s.id,
+    review_no:currentReviewNo,
+    shuffle_data:nextShuffle,
+    audio_path:null,
+    duration_seconds:null,
+    recorded_at:null
+  };
+
+  const { data, error }=await supabaseClient
+    .from('reviews')
+    .upsert(payload,{onConflict:'session_id,review_no'})
+    .select('id')
+    .single();
+
+  if(error){ reportError('셔플 결과를 저장하지 못했습니다.', error); return; }
+
+  s.reviews[currentReviewNo]={
+    id:data.id,shuffle:nextShuffle,audioPath:null,duration:0,completedAt:null
+  };
+  renderAll();
+}
+
+function setRecordButtonsText(text){
+  document.querySelectorAll('.record-toggle').forEach(el=>el.textContent=text);
+}
+function setRecordTimers(text,active=false){
+  document.querySelectorAll('.record-timer').forEach(el=>{
+    el.textContent=text;
+    el.className='record-timer'+(active?' recording':'');
+  });
+}
+function setRecordControls(hasAudio){
+  document.querySelectorAll('.record-toggle').forEach(el=>el.style.display=hasAudio?'none':'inline-block');
+  document.querySelectorAll('.rerecord-toggle').forEach(el=>el.style.display=hasAudio?'inline-block':'none');
+  document.querySelectorAll('.delete-recording-toggle').forEach(el=>el.style.display=hasAudio?'inline-block':'none');
+}
+function clearAudioPlayers(){
+  cleanupAudioUrls();
+  document.querySelectorAll('.audio-player').forEach(ap=>{
+    ap.pause();
+    ap.style.display='none';
+    ap.removeAttribute('src');
+  });
+}
+
+function audioExtension(mime){
+  if((mime||'').includes('ogg')) return 'ogg';
+  if((mime||'').includes('mp4')) return 'm4a';
+  return 'webm';
+}
+
+async function toggleRecord(){
+  if(recorder && recorder.state==='recording'){
+    recorder.stop();
+    return;
+  }
+
+  const s=getCurrent(); if(!s) return;
+  const r=await ensureReviewRow(currentReviewNo);
+  if(!r || !r.shuffle.length){
+    alert('복습할 표현이 없습니다.');
+    return;
+  }
+
+  if(!navigator.mediaDevices?.getUserMedia){
+    alert('이 브라우저는 마이크 녹음을 지원하지 않습니다.');
+    return;
+  }
+
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+    chunks=[];
+    recorder=new MediaRecorder(stream);
+
+    recorder.ondataavailable=e=>{ if(e.data.size) chunks.push(e.data); };
+
+    recorder.onstop=async()=>{
+      clearInterval(timerInterval);
+      stream.getTracks().forEach(t=>t.stop());
+
+      try{
+        const mime=recorder.mimeType||'audio/webm';
+        const blob=new Blob(chunks,{type:mime});
+        const ext=audioExtension(mime);
+        const path=`${supabaseUser.id}/${s.round}/review-${currentReviewNo}-${Date.now()}.${ext}`;
+
+        const { error:uploadError }=await supabaseClient.storage
+          .from(STORAGE_BUCKET)
+          .upload(path,blob,{contentType:mime,upsert:false});
+
+        if(uploadError) throw uploadError;
+
+        const duration=Math.max(1,Math.round((Date.now()-recordStartedAt)/1000));
+        const recordedAt=new Date().toISOString();
+
+        const payload={
+          user_id:supabaseUser.id,
+          session_id:s.id,
+          review_no:currentReviewNo,
+          shuffle_data:r.shuffle,
+          duration_seconds:duration,
+          recorded_at:recordedAt,
+          audio_path:path
+        };
+
+        const { data, error:reviewError }=await supabaseClient
+          .from('reviews')
+          .upsert(payload,{onConflict:'session_id,review_no'})
+          .select('id')
+          .single();
+
+        if(reviewError){
+          await supabaseClient.storage.from(STORAGE_BUCKET).remove([path]);
+          throw reviewError;
+        }
+
+        r.id=data.id;
+        r.audioPath=path;
+        r.duration=duration;
+        r.completedAt=new Date(recordedAt).getTime();
+
+        recorder=null;
+        renderAll();
+      }catch(e){
+        console.error(e);
+        recorder=null;
+        alert('녹음파일 저장 중 오류가 발생했습니다.');
+        renderAll();
+      }
+    };
+
+    recorder.start();
+    recordStartedAt=Date.now();
+    setRecordButtonsText('■ 녹음 종료 및 저장');
+    setRecordTimers('',true);
+    timerInterval=setInterval(()=>{
+      setRecordTimers('● '+formatSec((Date.now()-recordStartedAt)/1000)+' 녹음 중',true);
+    },500);
+  }catch(e){
+    console.error(e);
+    alert('마이크 권한을 허용해야 녹음할 수 있습니다.');
+  }
+}
+
+async function rerecord(){
+  const s=getCurrent(); const r=s?.reviews?.[currentReviewNo]; if(!r) return;
+  if(r.audioPath){
+    const { error }=await supabaseClient.storage.from(STORAGE_BUCKET).remove([r.audioPath]);
+    if(error){ reportError('기존 녹음을 삭제하지 못했습니다.', error); return; }
+  }
+
+  const { error:updateError }=await supabaseClient
+    .from('reviews')
+    .update({audio_path:null,duration_seconds:null,recorded_at:null})
+    .eq('session_id',s.id)
+    .eq('review_no',currentReviewNo);
+
+  if(updateError){ reportError('복습 기록을 갱신하지 못했습니다.', updateError); return; }
+
+  r.audioPath=null; r.duration=0; r.completedAt=null;
+  renderAll();
+  await toggleRecord();
+}
+
+async function deleteRecording(){
+  const s=getCurrent(); const r=s?.reviews?.[currentReviewNo]; if(!r?.audioPath) return;
+  if(!confirm('이 녹음 파일을 삭제할까요?')) return;
+
+  const { error:removeError }=await supabaseClient.storage.from(STORAGE_BUCKET).remove([r.audioPath]);
+  if(removeError){ reportError('녹음파일을 삭제하지 못했습니다.', removeError); return; }
+
+  const { error:updateError }=await supabaseClient
+    .from('reviews')
+    .update({audio_path:null,duration_seconds:null,recorded_at:null})
+    .eq('session_id',s.id)
+    .eq('review_no',currentReviewNo);
+
+  if(updateError){ reportError('복습 기록을 갱신하지 못했습니다.', updateError); return; }
+
+  r.audioPath=null; r.duration=0; r.completedAt=null;
+  renderAll();
+}
+
+async function renderReview(){
+  const s=getCurrent();
+  const badge=document.getElementById('reviewTabBadge');
+  if(!s){ if(badge) badge.textContent='-'; return; }
+
+  const done=reviewDoneCount(s);
+  badge.textContent=done===2?'✓ 완료':`${done}/2`;
+  document.getElementById('reviewBtn1').classList.toggle('active',currentReviewNo===1);
+  document.getElementById('reviewBtn2').classList.toggle('active',currentReviewNo===2);
+
+  const pool=prevThreeExpressions(s);
+  const empty=document.getElementById('reviewEmpty');
+  const main=document.getElementById('reviewMain');
+
+  if(!pool.length){
+    empty.style.display='block';
+    main.style.display='none';
+    empty.textContent='복습할 이전 표현이 아직 없습니다. 2·3단계에서 표현을 등록한 뒤 다음 회차부터 복습할 수 있습니다.';
+    return;
+  }
+
+  const r=await ensureReviewRow(currentReviewNo);
+  if(!r) return;
+
+  empty.style.display='none';
+  main.style.display='block';
+  document.getElementById('reviewDesc').textContent=`최근 3회차에서 ${pool.length}개 표현을 불러왔습니다.`;
+  document.getElementById('reviewCount').textContent=`${r.shuffle.length}개 표현`;
+  document.getElementById('reviewStatus').textContent=r.audioPath
+    ?`✓ ${currentReviewNo}차 녹음 완료 (${formatSec(r.duration)}) (${formatDateTime(r.completedAt)})`
+    :`${currentReviewNo}차 미완료`;
+  document.getElementById('reviewStatus').className='pill '+(r.audioPath?'ok':'');
+
+  document.getElementById('reviewList').innerHTML=r.shuffle.map(x=>
+    `<div class="korean-item ${x.source==='free'?'free-source':''}">
+      ${escapeHtml(x.ko)}
+      ${x.source==='free'?'<span class="source-tag">답답이 노트</span>':''}
+    </div>`
+  ).join('');
+
+  setRecordButtonsText('🎙 녹음하기');
+  setRecordTimers('');
+  clearAudioPlayers();
+
+  if(r.audioPath){
+    const { data:blob, error }=await supabaseClient.storage.from(STORAGE_BUCKET).download(r.audioPath);
+    if(error){
+      console.error('audio download',error);
+      setRecordControls(true);
+      return;
+    }
+
+    const url=URL.createObjectURL(blob);
+    audioObjectUrls.push(url);
+    document.querySelectorAll('.audio-player').forEach(ap=>{
+      ap.src=url;
+      ap.style.display='block';
+    });
+    setRecordControls(true);
+  }else{
+    setRecordControls(false);
+  }
+}
+
+// ---------------------------
+// 내보내기
+// ---------------------------
+async function exportData(){
+  const exportPayload={
+    exportedAt:new Date().toISOString(),
+    user:supabaseUser?.email||null,
+    sessions:state.sessions.map(s=>({
+      round:s.round,
+      date:s.date,
+      study:s.study.map(x=>({korean:x.ko,english:x.en})),
+      free:s.free.map(x=>({korean:x.ko,english:x.en})),
+      reviews:[1,2].map(n=>({
+        reviewNo:n,
+        durationSeconds:s.reviews?.[n]?.duration||null,
+        recordedAt:s.reviews?.[n]?.completedAt?new Date(s.reviews[n].completedAt).toISOString():null,
+        audioPath:s.reviews?.[n]?.audioPath||null,
+        shuffleData:s.reviews?.[n]?.shuffle||[]
+      }))
+    }))
+  };
+
+  const blob=new Blob([JSON.stringify(exportPayload,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`daily-english-data-${todayStr()}.json`;
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+
+// ---------------------------
+// 전체 렌더
+// ---------------------------
 function renderAll(){
   renderStart();
   document.getElementById('studyContent').innerHTML=getCurrent()?renderStage('study'):'';
@@ -634,104 +1180,8 @@ function renderAll(){
   renderCurrentSessionUI();
   renderReview();
 }
-function blobToDataURL(blob){
-  return new Promise((resolve,reject)=>{
-    const reader=new FileReader();
-    reader.onload=()=>resolve(reader.result);
-    reader.onerror=()=>reject(reader.error);
-    reader.readAsDataURL(blob);
-  });
-}
-function dataURLToBlob(dataURL){
-  const [meta,data]=dataURL.split(',');
-  const mime=(meta.match(/data:([^;]+)/)||[])[1]||'application/octet-stream';
-  const bytes=atob(data);
-  const arr=new Uint8Array(bytes.length);
-  for(let i=0;i<bytes.length;i++) arr[i]=bytes.charCodeAt(i);
-  return new Blob([arr],{type:mime});
-}
-async function exportData(){
-  try{
-    const audio={};
-    for(const s of state.sessions||[]){
-      for(const n of [1,2]){
-        const key=s.reviews?.[n]?.audioKey;
-        if(key && !audio[key]){
-          const blob=await idbGet(key);
-          if(blob) audio[key]=await blobToDataURL(blob);
-        }
-      }
-    }
-    const backup={
-      app:'daily-english-study',
-      version:2,
-      exportedAt:new Date().toISOString(),
-      state,
-      audio
-    };
-    const blob=new Blob([JSON.stringify(backup)],{type:'application/json'});
-    const a=document.createElement('a');
-    a.href=URL.createObjectURL(blob);
-    a.download=`daily-english-full-backup-${todayStr()}.json`;
-    a.click();
-    setTimeout(()=>URL.revokeObjectURL(a.href),1000);
-  }catch(e){
-    console.error(e);
-    alert('백업 파일을 만드는 중 오류가 발생했습니다.');
-  }
-}
-async function restoreData(event){
-  const file=event.target.files?.[0];
-  if(!file) return;
-  try{
-    const parsed=JSON.parse(await file.text());
-    const restoredState=parsed?.state || parsed;
-    if(!restoredState || !Array.isArray(restoredState.sessions)) throw new Error('invalid backup');
-    if(!confirm('현재 브라우저의 데이터를 백업 파일 내용으로 교체할까요? 기존 데이터는 덮어씌워집니다.')) return;
 
-    // Clear current audio store first.
-    await idbClear();
-
-    if(parsed.audio && typeof parsed.audio==='object'){
-      for(const [key,dataURL] of Object.entries(parsed.audio)){
-        if(typeof dataURL==='string' && dataURL.startsWith('data:')){
-          await idbPut(key,dataURLToBlob(dataURL));
-        }
-      }
-    }
-
-    state=restoredState;
-    const existingMax=(state.sessions||[]).reduce((m,s)=>Math.max(m,s.round||0),0);
-    state.maxRoundEver=Math.max(state.maxRoundEver||0,existingMax);
-    localStorage.setItem(LS_KEY,JSON.stringify(state));
-    currentSessionId=null;
-    sessionPage=1;
-    alert('백업 복원이 완료되었습니다.');
-    renderAll();
-    goTab('start');
-  }catch(e){
-    console.error(e);
-    alert('올바른 백업 파일이 아니거나 복원 중 오류가 발생했습니다.');
-  }finally{
-    event.target.value='';
-  }
-}
-
-/* IndexedDB for audio blobs */
-const DB_NAME='DailyEnglishAudioDB', STORE='audio';
-function openDB(){
-  return new Promise((resolve,reject)=>{
-    const req=indexedDB.open(DB_NAME,1);
-    req.onupgradeneeded=()=>{ if(!req.result.objectStoreNames.contains(STORE)) req.result.createObjectStore(STORE); };
-    req.onsuccess=()=>resolve(req.result); req.onerror=()=>reject(req.error);
-  });
-}
-async function idbPut(key,blob){ const db=await openDB(); return new Promise((res,rej)=>{ const tx=db.transaction(STORE,'readwrite'); tx.objectStore(STORE).put(blob,key); tx.oncomplete=res; tx.onerror=()=>rej(tx.error); });}
-async function idbGet(key){ const db=await openDB(); return new Promise((res,rej)=>{ const q=db.transaction(STORE).objectStore(STORE).get(key); q.onsuccess=()=>res(q.result); q.onerror=()=>rej(q.error); });}
-async function idbDelete(key){ const db=await openDB(); return new Promise((res,rej)=>{ const tx=db.transaction(STORE,'readwrite'); tx.objectStore(STORE).delete(key); tx.oncomplete=res; tx.onerror=()=>rej(tx.error); });}
-async function idbClear(){ const db=await openDB(); return new Promise((res,rej)=>{ const tx=db.transaction(STORE,'readwrite'); tx.objectStore(STORE).clear(); tx.oncomplete=res; tx.onerror=()=>rej(tx.error); });}
-
-renderAll();
+initializeSupabaseAuth();
 </script>
 </body>
 </html>
