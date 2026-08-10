@@ -107,6 +107,15 @@
     .auth-field input{width:100%;border:1px solid var(--line);border-radius:11px;padding:12px 13px}
     .auth-error{margin-top:12px;color:var(--danger);font-size:13px;min-height:18px}
     .auth-actions{display:flex;gap:8px;margin-top:18px}
+
+    .audio-row{display:flex;align-items:center;gap:10px;margin-top:12px}
+    .audio-row audio{flex:1;margin:0}
+    .audio-row .danger{flex:0 0 auto;white-space:nowrap}
+    @media(max-width:620px){
+      .audio-row{align-items:stretch}
+      .audio-row audio{min-width:0}
+      .audio-row .danger{padding:9px 10px;font-size:12px}
+    }
     .user-box{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
     .user-email{font-size:12px;color:var(--muted)}
     @media(max-width:760px){
@@ -228,11 +237,12 @@
         <div class="record-box" style="margin-top:16px">
           <div class="toolbar">
             <button class="primary record-toggle" onclick="toggleRecord()">🎙 녹음하기</button>
-            <button class="secondary rerecord-toggle" onclick="rerecord()" style="display:none">다시 녹음</button>
-            <button class="danger delete-recording-toggle" onclick="deleteRecording()" style="display:none">녹음 삭제</button>
             <span class="record-timer"></span>
           </div>
-          <audio class="audio-player" controls style="display:none"></audio>
+          <div class="audio-row" style="display:none">
+            <audio class="audio-player" controls></audio>
+            <button class="danger delete-recording-toggle" onclick="deleteRecording()">녹음 삭제</button>
+          </div>
         </div>
 
         <div class="expressions" id="reviewList"></div>
@@ -240,11 +250,12 @@
         <div class="record-box">
           <div class="toolbar">
             <button class="primary record-toggle" onclick="toggleRecord()">🎙 녹음하기</button>
-            <button class="secondary rerecord-toggle" onclick="rerecord()" style="display:none">다시 녹음</button>
-            <button class="danger delete-recording-toggle" onclick="deleteRecording()" style="display:none">녹음 삭제</button>
             <span class="record-timer"></span>
           </div>
-          <audio class="audio-player" controls style="display:none"></audio>
+          <div class="audio-row" style="display:none">
+            <audio class="audio-player" controls></audio>
+            <button class="danger delete-recording-toggle" onclick="deleteRecording()">녹음 삭제</button>
+          </div>
         </div>
       </div>
     </div>
@@ -926,16 +937,16 @@ function setRecordTimers(text,active=false){
 }
 function setRecordControls(hasAudio){
   document.querySelectorAll('.record-toggle').forEach(el=>el.style.display=hasAudio?'none':'inline-block');
-  document.querySelectorAll('.rerecord-toggle').forEach(el=>el.style.display=hasAudio?'inline-block':'none');
-  document.querySelectorAll('.delete-recording-toggle').forEach(el=>el.style.display=hasAudio?'inline-block':'none');
+  document.querySelectorAll('.audio-row').forEach(el=>el.style.display=hasAudio?'flex':'none');
 }
 function clearAudioPlayers(){
   cleanupAudioUrls();
   document.querySelectorAll('.audio-player').forEach(ap=>{
     ap.pause();
-    ap.style.display='none';
     ap.removeAttribute('src');
+    ap.load();
   });
+  document.querySelectorAll('.audio-row').forEach(el=>el.style.display='none');
 }
 
 function audioExtension(mime){
@@ -1037,26 +1048,6 @@ async function toggleRecord(){
   }
 }
 
-async function rerecord(){
-  const s=getCurrent(); const r=s?.reviews?.[currentReviewNo]; if(!r) return;
-  if(r.audioPath){
-    const { error }=await supabaseClient.storage.from(STORAGE_BUCKET).remove([r.audioPath]);
-    if(error){ reportError('기존 녹음을 삭제하지 못했습니다.', error); return; }
-  }
-
-  const { error:updateError }=await supabaseClient
-    .from('reviews')
-    .update({audio_path:null,duration_seconds:null,recorded_at:null})
-    .eq('session_id',s.id)
-    .eq('review_no',currentReviewNo);
-
-  if(updateError){ reportError('복습 기록을 갱신하지 못했습니다.', updateError); return; }
-
-  r.audioPath=null; r.duration=0; r.completedAt=null;
-  renderAll();
-  await toggleRecord();
-}
-
 async function deleteRecording(){
   const s=getCurrent(); const r=s?.reviews?.[currentReviewNo]; if(!r?.audioPath) return;
   if(!confirm('이 녹음 파일을 삭제할까요?')) return;
@@ -1132,7 +1123,6 @@ async function renderReview(){
     audioObjectUrls.push(url);
     document.querySelectorAll('.audio-player').forEach(ap=>{
       ap.src=url;
-      ap.style.display='block';
     });
     setRecordControls(true);
   }else{
@@ -1185,3 +1175,4 @@ initializeSupabaseAuth();
 </script>
 </body>
 </html>
+
