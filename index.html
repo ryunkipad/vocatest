@@ -123,6 +123,11 @@
       transform:translateY(-3px);transition:max-height .28s ease,opacity .25s ease,transform .25s ease,margin-top .25s ease}
     .practice-item.revealed .practice-en{max-height:120px;opacity:1;transform:translateY(0);margin-top:7px}
     .practice-item.free-source{background:#fff9df;border-color:#f1dfa0}
+
+    .practice-topline{display:flex;align-items:flex-start;gap:12px}
+    .practice-num{min-width:25px;height:25px;display:grid;place-items:center;border-radius:8px;
+      background:#eef0f5;color:#707582;font-size:12px;font-weight:800;flex:0 0 auto}
+    .practice-text{min-width:0;flex:1}
     .audio-row{display:flex;align-items:center;gap:10px;margin-top:12px}
     .audio-row audio{flex:1;margin:0}
     .audio-row .danger{flex:0 0 auto;white-space:nowrap}
@@ -948,8 +953,13 @@ function renderPractice(){
 
   document.getElementById('practiceList').innerHTML=practiceShuffle.map((x,i)=>`
     <div class="practice-item ${x.source==='free'?'free-source':''}" data-index="${i}" onclick="revealPracticeItem(${i})">
-      <div class="practice-ko">${escapeHtml(x.ko)}</div>
-      <div class="practice-en">${escapeHtml(x.ko)} &nbsp; - &nbsp; <b>${escapeHtml(x.en)}</b></div>
+      <div class="practice-topline">
+        <span class="practice-num">${i+1}</span>
+        <div class="practice-text">
+          <div class="practice-ko">${escapeHtml(x.ko)}</div>
+          <div class="practice-en"><b>${escapeHtml(x.en)}</b></div>
+        </div>
+      </div>
     </div>
   `).join('');
 }
