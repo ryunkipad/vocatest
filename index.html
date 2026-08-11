@@ -526,6 +526,7 @@ async function loadRemoteState(){
     supabaseClient
       .from('sessions')
       .select('round')
+      .is('deleted_at', null)
       .order('round', {ascending:false})
       .limit(1),
     supabaseClient
@@ -613,7 +614,12 @@ function selectSession(id){ currentSessionId=id; currentReviewNo=1; currentRevie
 async function deleteSession(id){
   const s=state.sessions.find(x=>x.id===id);
   if(!s) return;
-  if(!confirm(`${s.round}회차를 삭제할까요?\n\n삭제해도 다른 회차 번호는 당겨지지 않으며, ${s.round}회차 번호는 비어 있게 됩니다.`)) return;
+  const activeMax=Math.max(...state.sessions.map(x=>x.round));
+  const isLastRound=s.round===activeMax;
+  const deleteGuide=isLastRound
+    ?`${s.round}회차는 현재 마지막 회차이므로 삭제 후 다음 새 회차에서 ${s.round}회차 번호를 다시 사용합니다.`
+    :`중간 회차를 삭제해도 뒤 회차 번호는 당겨지지 않으며, ${s.round}회차 번호는 빈 번호로 유지됩니다.`;
+  if(!confirm(`${s.round}회차를 삭제할까요?\n\n${deleteGuide}`)) return;
 
   const paths=[1,2].map(n=>s.reviews?.[n]?.audioPath).filter(Boolean);
   if(paths.length){
@@ -634,6 +640,7 @@ async function deleteSession(id){
   if(e3){ reportError('회차 삭제 중 오류가 발생했습니다.', e3); return; }
 
   state.sessions=state.sessions.filter(x=>x.id!==id);
+  state.maxRoundEver=state.sessions.reduce((m,x)=>Math.max(m,x.round||0),0);
   if(currentSessionId===id){
     currentSessionId=state.sessions.length?[...state.sessions].sort((a,b)=>b.round-a.round)[0].id:null;
   }
