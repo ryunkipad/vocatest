@@ -153,6 +153,9 @@
   
     .bottom-utility{margin-top:44px;padding:18px 0 4px;border-top:1px solid #eceef3}
     .bottom-utility .toolbar{justify-content:flex-end;flex-wrap:wrap}
+
+    .reveal-count{display:inline-flex;align-items:center;justify-content:center;min-width:54px;height:28px;
+      padding:0 10px;border-radius:999px;background:#fff0f0;color:#d83f3f;font-size:12px;font-weight:900}
 </style>
 </head>
 <body>
@@ -250,7 +253,7 @@
       <div id="reviewPracticeArea" style="display:none">
         <div class="toolbar">
           <button class="secondary" onclick="reshufflePractice()">↻ 랜덤 섞기</button>
-          <span class="pill" id="practiceCount"></span>
+          <span class="pill" id="practiceCount"></span><span class="reveal-count" id="practiceRevealCount">힌트사용 0회</span>
         </div>
         <div id="practiceEmpty" class="empty" style="display:none;margin-top:16px"></div>
         <div class="practice-list" id="practiceList"></div>
@@ -312,7 +315,7 @@
       </div>
       <div id="stage4Empty" class="empty" style="display:none"></div>
       <div id="stage4Main">
-        <div class="toolbar"><span class="pill" id="stage4Count"></span></div>
+        <div class="toolbar"><span class="pill" id="stage4Count"></span><span class="reveal-count" id="stage4RevealCount">힌트사용 0회</span></div>
         <div class="practice-list" id="stage4List"></div>
       </div>
     </div>
@@ -354,8 +357,12 @@ let currentReviewNo = 1;
 let currentReviewMode = 'practice';
 let practiceShuffle = [];
 const practiceRevealTimers = new Map();
+let practiceRevealOpenCount = 0;
+let practiceOpenedIndexes = new Set();
 let stage4Shuffle = [];
 const stage4RevealTimers = new Map();
+let stage4RevealOpenCount = 0;
+let stage4OpenedIndexes = new Set();
 let sessionPage = 1;
 const SESSION_PAGE_SIZE = 10;
 
@@ -601,7 +608,7 @@ async function startNewRound(){
   goTab('review');
 }
 function continueCurrent(){ if(getCurrent()) goTab('review'); }
-function selectSession(id){ currentSessionId=id; currentReviewNo=1; currentReviewMode='practice'; practiceShuffle=[]; stage4Shuffle=[]; renderAll(); }
+function selectSession(id){ currentSessionId=id; currentReviewNo=1; currentReviewMode='practice'; practiceShuffle=[]; practiceRevealOpenCount=0; practiceOpenedIndexes=new Set(); stage4Shuffle=[]; stage4RevealOpenCount=0; stage4OpenedIndexes=new Set(); renderAll(); }
 
 async function deleteSession(id){
   const s=state.sessions.find(x=>x.id===id);
@@ -936,12 +943,22 @@ function reshufflePractice(){
   const pool=prevThreeExpressions(s);
   practiceRevealTimers.forEach(timer=>clearTimeout(timer));
   practiceRevealTimers.clear();
+  practiceRevealOpenCount=0;
+  practiceOpenedIndexes=new Set();
+  const counter=document.getElementById('practiceRevealCount');
+  if(counter) counter.textContent='힌트사용 0회';
   practiceShuffle=shuffleArray(pool.map(x=>({id:x.id,ko:x.ko,en:x.en,source:x.source||'study'})));
   renderPractice();
 }
 function revealPracticeItem(index){
   const el=document.querySelector(`#practiceList .practice-item[data-index="${index}"]`);
   if(!el) return;
+  if(!practiceOpenedIndexes.has(index)){
+    practiceOpenedIndexes.add(index);
+    practiceRevealOpenCount++;
+    const counter=document.getElementById('practiceRevealCount');
+    if(counter) counter.textContent=`힌트사용 ${practiceRevealOpenCount}회`;
+  }
   const oldTimer=practiceRevealTimers.get(index);
   if(oldTimer) clearTimeout(oldTimer);
   el.classList.add('revealed');
@@ -971,6 +988,8 @@ function renderPractice(){
 
   empty.style.display='none';
   count.textContent=`${practiceShuffle.length}개 표현`;
+  const revealCountEl=document.getElementById('practiceRevealCount');
+  if(revealCountEl) revealCountEl.textContent=`힌트사용 ${practiceRevealOpenCount}회`;
   list.innerHTML=practiceShuffle.map((x,i)=>`
     <div class="practice-item ${x.source==='free'?'free-source':''}" data-index="${i}" onclick="revealPracticeItem(${i})">
       <div class="practice-topline">
@@ -1001,12 +1020,22 @@ function reshuffleStage4(){
   const pool=currentSessionExpressions(s);
   stage4RevealTimers.forEach(timer=>clearTimeout(timer));
   stage4RevealTimers.clear();
+  stage4RevealOpenCount=0;
+  stage4OpenedIndexes=new Set();
+  const counter=document.getElementById('stage4RevealCount');
+  if(counter) counter.textContent='힌트사용 0회';
   stage4Shuffle=shuffleArray(pool.map(x=>({id:x.id,ko:x.ko,en:x.en,source:x.source||'study'})));
   renderStage4();
 }
 function revealStage4Item(index){
   const el=document.querySelector(`#stage4List .practice-item[data-index="${index}"]`);
   if(!el) return;
+  if(!stage4OpenedIndexes.has(index)){
+    stage4OpenedIndexes.add(index);
+    stage4RevealOpenCount++;
+    const counter=document.getElementById('stage4RevealCount');
+    if(counter) counter.textContent=`힌트사용 ${stage4RevealOpenCount}회`;
+  }
   const oldTimer=stage4RevealTimers.get(index);
   if(oldTimer) clearTimeout(oldTimer);
   el.classList.add('revealed');
@@ -1039,6 +1068,8 @@ function renderStage4(){
   main.style.display='block';
   if(desc) desc.textContent=`현재 회차의 ${pool.length}개 표현을 연습합니다. 한글을 누르면 영어가 3초 동안 보입니다.`;
   count.textContent=`${stage4Shuffle.length}개 표현`;
+  const revealCountEl=document.getElementById('stage4RevealCount');
+  if(revealCountEl) revealCountEl.textContent=`힌트사용 ${stage4RevealOpenCount}회`;
   list.innerHTML=stage4Shuffle.map((x,i)=>`
     <div class="practice-item ${x.source==='free'?'free-source':''}" data-index="${i}" onclick="revealStage4Item(${i})">
       <div class="practice-topline">
