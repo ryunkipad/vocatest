@@ -514,10 +514,15 @@ document.addEventListener('keydown', e=>{
 // ---------------------------
 // Supabase ↔ 화면 상태 동기화
 // ---------------------------
-async function loadRemoteState(){
-  if(!supabaseUser) return;
+function isJwtTimingError(error){
+  const msg=String(error?.message||'').toLowerCase();
+  return msg.includes('jwt issued at future') ||
+         msg.includes('jwt expired') ||
+         msg.includes('invalid jwt');
+}
 
-  const [sessionsRes, maxRoundRes, expressionsRes, reviewsRes] = await Promise.all([
+async function fetchRemoteStateOnce(){
+  return await Promise.all([
     supabaseClient
       .from('sessions')
       .select('id, round, study_date, created_at, deleted_at')
@@ -536,9 +541,50 @@ async function loadRemoteState(){
       .from('reviews')
       .select('id, session_id, review_no, shuffle_data, duration_seconds, recorded_at, audio_path, created_at')
   ]);
+}
 
-  const firstError=sessionsRes.error||maxRoundRes.error||expressionsRes.error||reviewsRes.error;
-  if(firstError){ reportError('Supabase 데이터를 불러오지 못했습니다.', firstError); return; }
+async function loadRemoteState(){
+  if(!supabaseUser) return;
+
+  let results=await fetchRemoteStateOnce();
+  let [sessionsRes,maxRoundRes,expressionsRes,reviewsRes]=results;
+  let firstError=sessionsRes.error||maxRoundRes.error||expressionsRes.error||reviewsRes.error;
+
+  if(firstError && isJwtTimingError(firstError)){
+    console.warn('JWT timing error detected. Refreshing session silently...');
+
+    const { data:refreshData, error:refreshError }=
+      await supabaseClient.auth.refreshSession();
+
+    if(!refreshError && refreshData?.session?.user){
+      supabaseUser=refreshData.session.user;
+
+      await new Promise(resolve=>setTimeout(resolve,350));
+
+      results=await fetchRemoteStateOnce();
+      [sessionsRes,maxRoundRes,expressionsRes,reviewsRes]=results;
+      firstError=sessionsRes.error||maxRoundRes.error||expressionsRes.error||reviewsRes.error;
+    }
+  }
+
+  if(firstError){
+    if(isJwtTimingError(firstError)){
+      console.warn('JWT timing error remained after retry:', firstError);
+
+      await supabaseClient.auth.signOut();
+      supabaseUser=null;
+      state={sessions:[],maxRoundEver:0};
+      currentSessionId=null;
+
+      document.getElementById('mainApp').style.display='none';
+      document.getElementById('authScreen').style.display='grid';
+      showAuthError('로그인 세션이 만료되었습니다. 다시 로그인해주세요.');
+      return;
+    }
+
+    reportError('Supabase 데이터를 불러오지 못했습니다.', firstError);
+    return;
+  }
 
   const expressions=expressionsRes.data||[];
   const reviews=reviewsRes.data||[];
@@ -571,11 +617,14 @@ async function loadRemoteState(){
 
   state.maxRoundEver=maxRoundRes.data?.[0]?.round||0;
 
-  if(currentSessionId && !state.sessions.some(s=>s.id===currentSessionId)) currentSessionId=null;
+  if(currentSessionId && !state.sessions.some(s=>s.id===currentSessionId)){
+    currentSessionId=null;
+  }
   if(!currentSessionId && state.sessions.length){
     currentSessionId=[...state.sessions].sort((a,b)=>b.round-a.round)[0].id;
   }
 
+  practiceShuffle=[];
   renderAll();
 }
 
