@@ -195,10 +195,10 @@
 
   <nav class="tabs">
     <button class="tab active" data-tab="start" onclick="goTab('start')">⌂ Home</button>
-    <button class="tab" data-tab="practice" onclick="goTab('practice')">[0단계] 연습하기</button>
     <button class="tab" data-tab="review" onclick="goTab('review')">[1단계] 복습하기 <span class="badge" id="reviewTabBadge">-</span></button>
     <button class="tab" data-tab="study" onclick="goTab('study')">[2단계] 본 공부 <span class="tab-count-badge" id="studyTabCount" style="display:none"></span></button>
     <button class="tab" data-tab="free" onclick="goTab('free')">[3단계] 답답이 노트 <span class="tab-count-badge" id="freeTabCount" style="display:none"></span></button>
+    <button class="tab" data-tab="stage4" onclick="goTab('stage4')">[4단계] 연습하기</button>
   </nav>
 
   <div class="current-session-bar" id="currentSessionBar">
@@ -238,26 +238,6 @@
     </div>
   </section>
 
-  <section class="panel" id="panel-practice">
-    <div class="card">
-      <div class="review-head">
-        <div>
-          <h2>[0단계] 연습하기</h2>
-          <p class="hint" id="practiceDesc">최근 3회차 표현을 랜덤으로 연습합니다. 한글 표현을 누르면 영어 표현이 3초 동안 보입니다.</p>
-        </div>
-        <button class="secondary" onclick="reshufflePractice()">↻ 랜덤 섞기</button>
-      </div>
-
-      <div id="practiceEmpty" class="empty" style="display:none"></div>
-      <div id="practiceMain">
-        <div class="toolbar">
-          <span class="pill" id="practiceCount"></span>
-        </div>
-        <div class="practice-list" id="practiceList"></div>
-      </div>
-    </div>
-  </section>
-
   <section class="panel" id="panel-review">
     <div class="card">
       <div class="review-head">
@@ -266,11 +246,22 @@
           <p class="hint" id="reviewDesc">최근 3회차의 본 공부 + 답답이 노트 표현을 한글만 표시합니다.</p>
         </div>
         <div class="review-switch">
-          <button id="reviewBtn1" onclick="switchReview(1)">1차 복습</button>
-          <button id="reviewBtn2" onclick="switchReview(2)">2차 복습</button>
+          <button id="reviewBtnPractice" onclick="switchReviewMode('practice')">사전연습</button>
+          <button id="reviewBtn1" onclick="switchReviewMode(1)">1차 녹음</button>
+          <button id="reviewBtn2" onclick="switchReviewMode(2)">2차 녹음</button>
         </div>
       </div>
 
+      <div id="reviewPracticeArea" style="display:none">
+        <div class="toolbar">
+          <button class="secondary" onclick="reshufflePractice()">↻ 랜덤 섞기</button>
+          <span class="pill" id="practiceCount"></span>
+        </div>
+        <div id="practiceEmpty" class="empty" style="display:none;margin-top:16px"></div>
+        <div class="practice-list" id="practiceList"></div>
+      </div>
+
+      <div id="reviewRecordingArea">
       <div id="reviewEmpty" class="empty" style="display:none"></div>
       <div id="reviewMain">
         <div class="toolbar">
@@ -303,6 +294,7 @@
           </div>
         </div>
       </div>
+      </div>
     </div>
   </section>
 
@@ -312,6 +304,23 @@
 
   <section class="panel" id="panel-free">
     <div id="freeContent"></div>
+  </section>
+
+  <section class="panel" id="panel-stage4">
+    <div class="card">
+      <div class="review-head">
+        <div>
+          <h2>[4단계] 연습하기</h2>
+          <p class="hint" id="stage4Desc">현재 회차의 본 공부 + 답답이 노트 표현을 연습합니다. 한글을 누르면 영어가 3초 동안 보입니다.</p>
+        </div>
+        <button class="secondary" onclick="reshuffleStage4()">↻ 랜덤 섞기</button>
+      </div>
+      <div id="stage4Empty" class="empty" style="display:none"></div>
+      <div id="stage4Main">
+        <div class="toolbar"><span class="pill" id="stage4Count"></span></div>
+        <div class="practice-list" id="stage4List"></div>
+      </div>
+    </div>
   </section>
   </div>
 </div>
@@ -337,8 +346,11 @@ let supabaseUser = null;
 let state = { sessions: [], maxRoundEver: 0 };
 let currentSessionId = null;
 let currentReviewNo = 1;
+let currentReviewMode = 'practice';
 let practiceShuffle = [];
 const practiceRevealTimers = new Map();
+let stage4Shuffle = [];
+const stage4RevealTimers = new Map();
 let sessionPage = 1;
 const SESSION_PAGE_SIZE = 10;
 
@@ -584,7 +596,7 @@ async function startNewRound(){
   goTab('review');
 }
 function continueCurrent(){ if(getCurrent()) goTab('review'); }
-function selectSession(id){ currentSessionId=id; currentReviewNo=1; practiceShuffle=[]; renderAll(); }
+function selectSession(id){ currentSessionId=id; currentReviewNo=1; currentReviewMode='practice'; practiceShuffle=[]; stage4Shuffle=[]; renderAll(); }
 
 async function deleteSession(id){
   const s=state.sessions.find(x=>x.id===id);
@@ -787,6 +799,7 @@ async function addExpression(kind){
 
   if(error){ reportError('표현을 추가하지 못했습니다.', error); return; }
   s[kind].push({id:data.id,ko:data.korean,en:data.english});
+  stage4Shuffle=[];
   renderAll();
 }
 
@@ -813,6 +826,7 @@ async function deleteExpression(kind,i){
   if(error){ reportError('표현을 삭제하지 못했습니다.', error); return; }
 
   s[kind].splice(i,1);
+  stage4Shuffle=[];
   renderAll();
 }
 
@@ -829,6 +843,7 @@ async function deleteAllExpressions(kind){
 
   if(error){ reportError('표현 전체삭제에 실패했습니다.', error); return; }
   s[kind]=[];
+  stage4Shuffle=[];
   renderAll();
 }
 
@@ -874,6 +889,7 @@ async function parseDocx(event,kind){
     if(error) throw error;
 
     s[kind].push(...(data||[]).map(x=>({id:x.id,ko:x.korean,en:x.english})));
+    stage4Shuffle=[];
     renderAll();
     const refreshedStatus=document.getElementById((kind==='study'?'study':'free')+'ParseStatus');
     if(refreshedStatus) refreshedStatus.textContent=`✓ ${data?.length||0}개 표현을 추가했습니다.`;
@@ -900,7 +916,7 @@ function parseExpressionText(text){
 
 
 // ---------------------------
-// 0단계 연습하기
+// 1단계 사전연습
 // ---------------------------
 function preparePractice(){
   const s=getCurrent();
@@ -919,7 +935,7 @@ function reshufflePractice(){
   renderPractice();
 }
 function revealPracticeItem(index){
-  const el=document.querySelector(`.practice-item[data-index="${index}"]`);
+  const el=document.querySelector(`#practiceList .practice-item[data-index="${index}"]`);
   if(!el) return;
   const oldTimer=practiceRevealTimers.get(index);
   if(oldTimer) clearTimeout(oldTimer);
@@ -936,23 +952,90 @@ function renderPractice(){
   preparePractice();
   const pool=prevThreeExpressions(s);
   const empty=document.getElementById('practiceEmpty');
-  const main=document.getElementById('practiceMain');
-  if(!empty || !main) return;
+  const list=document.getElementById('practiceList');
+  const count=document.getElementById('practiceCount');
+  if(!empty || !list || !count) return;
+
+  if(!pool.length){
+    empty.style.display='block';
+    empty.textContent='연습할 이전 표현이 아직 없습니다. [2단계] 본 공부와 [3단계] 답답이 노트에 표현을 등록한 뒤 다음 회차부터 사용할 수 있습니다.';
+    list.innerHTML='';
+    count.textContent='0개 표현';
+    return;
+  }
+
+  empty.style.display='none';
+  count.textContent=`${practiceShuffle.length}개 표현`;
+  list.innerHTML=practiceShuffle.map((x,i)=>`
+    <div class="practice-item ${x.source==='free'?'free-source':''}" data-index="${i}" onclick="revealPracticeItem(${i})">
+      <div class="practice-topline">
+        <span class="practice-num">${i+1}</span>
+        <div class="practice-text">
+          <div class="practice-ko">${escapeHtml(x.ko)}</div>
+          <div class="practice-en"><b>${escapeHtml(x.en)}</b></div>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ---------------------------
+// 4단계 현재 회차 연습
+// ---------------------------
+function currentSessionExpressions(s){ return allExpressions(s); }
+function prepareStage4(){
+  const s=getCurrent();
+  if(!s){ stage4Shuffle=[]; return; }
+  const pool=currentSessionExpressions(s);
+  if(!stage4Shuffle.length && pool.length){
+    stage4Shuffle=shuffleArray(pool.map(x=>({id:x.id,ko:x.ko,en:x.en,source:x.source||'study'})));
+  }
+}
+function reshuffleStage4(){
+  const s=getCurrent(); if(!s) return;
+  const pool=currentSessionExpressions(s);
+  stage4RevealTimers.forEach(timer=>clearTimeout(timer));
+  stage4RevealTimers.clear();
+  stage4Shuffle=shuffleArray(pool.map(x=>({id:x.id,ko:x.ko,en:x.en,source:x.source||'study'})));
+  renderStage4();
+}
+function revealStage4Item(index){
+  const el=document.querySelector(`#stage4List .practice-item[data-index="${index}"]`);
+  if(!el) return;
+  const oldTimer=stage4RevealTimers.get(index);
+  if(oldTimer) clearTimeout(oldTimer);
+  el.classList.add('revealed');
+  const timer=setTimeout(()=>{
+    el.classList.remove('revealed');
+    stage4RevealTimers.delete(index);
+  },3000);
+  stage4RevealTimers.set(index,timer);
+}
+function renderStage4(){
+  const s=getCurrent();
+  if(!s) return;
+  prepareStage4();
+  const pool=currentSessionExpressions(s);
+  const empty=document.getElementById('stage4Empty');
+  const main=document.getElementById('stage4Main');
+  const list=document.getElementById('stage4List');
+  const count=document.getElementById('stage4Count');
+  const desc=document.getElementById('stage4Desc');
+  if(!empty || !main || !list || !count) return;
 
   if(!pool.length){
     empty.style.display='block';
     main.style.display='none';
-    empty.textContent='연습할 이전 표현이 아직 없습니다. [2단계] 본 공부와 [3단계] 답답이 노트에 표현을 등록한 뒤 다음 회차부터 사용할 수 있습니다.';
+    empty.textContent='현재 회차에 등록된 표현이 없습니다. [2단계] 본 공부 또는 [3단계] 답답이 노트에서 표현을 먼저 등록해주세요.';
     return;
   }
 
   empty.style.display='none';
   main.style.display='block';
-  document.getElementById('practiceDesc').textContent=`최근 3회차에서 ${pool.length}개 표현을 불러왔습니다. 한글을 누르면 영어가 3초 동안 보입니다.`;
-  document.getElementById('practiceCount').textContent=`${practiceShuffle.length}개 표현`;
-
-  document.getElementById('practiceList').innerHTML=practiceShuffle.map((x,i)=>`
-    <div class="practice-item ${x.source==='free'?'free-source':''}" data-index="${i}" onclick="revealPracticeItem(${i})">
+  if(desc) desc.textContent=`현재 회차의 ${pool.length}개 표현을 연습합니다. 한글을 누르면 영어가 3초 동안 보입니다.`;
+  count.textContent=`${stage4Shuffle.length}개 표현`;
+  list.innerHTML=stage4Shuffle.map((x,i)=>`
+    <div class="practice-item ${x.source==='free'?'free-source':''}" data-index="${i}" onclick="revealStage4Item(${i})">
       <div class="practice-topline">
         <span class="practice-num">${i+1}</span>
         <div class="practice-text">
@@ -999,8 +1082,9 @@ async function ensureReviewRow(n){
   return r;
 }
 
-async function switchReview(n){
-  currentReviewNo=n;
+async function switchReviewMode(mode){
+  currentReviewMode=mode;
+  if(mode===1 || mode===2) currentReviewNo=mode;
   await renderReview();
 }
 
@@ -1192,8 +1276,23 @@ async function renderReview(){
   const done=reviewDoneCount(s);
   badge.textContent=done===2?'✓ 완료':`${done}/2`;
   badge.classList.toggle('review-complete',done===2);
-  document.getElementById('reviewBtn1').classList.toggle('active',currentReviewNo===1);
-  document.getElementById('reviewBtn2').classList.toggle('active',currentReviewNo===2);
+
+  document.getElementById('reviewBtnPractice').classList.toggle('active',currentReviewMode==='practice');
+  document.getElementById('reviewBtn1').classList.toggle('active',currentReviewMode===1);
+  document.getElementById('reviewBtn2').classList.toggle('active',currentReviewMode===2);
+
+  const practiceArea=document.getElementById('reviewPracticeArea');
+  const recordingArea=document.getElementById('reviewRecordingArea');
+
+  if(currentReviewMode==='practice'){
+    if(practiceArea) practiceArea.style.display='block';
+    if(recordingArea) recordingArea.style.display='none';
+    renderPractice();
+    return;
+  }
+
+  if(practiceArea) practiceArea.style.display='none';
+  if(recordingArea) recordingArea.style.display='block';
 
   const pool=prevThreeExpressions(s);
   const empty=document.getElementById('reviewEmpty');
@@ -1286,7 +1385,7 @@ function renderAll(){
   document.getElementById('studyContent').innerHTML=getCurrent()?renderStage('study'):'';
   document.getElementById('freeContent').innerHTML=getCurrent()?renderStage('free'):'';
   renderCurrentSessionUI();
-  renderPractice();
+  renderStage4();
   renderReview();
 }
 
