@@ -150,7 +150,10 @@
       .review-head{display:block}
       .review-switch{margin-top:12px}
     }
-  </style>
+  
+    .bottom-utility{margin-top:44px;padding:18px 0 4px;border-top:1px solid #eceef3}
+    .bottom-utility .toolbar{justify-content:flex-end;flex-wrap:wrap}
+</style>
 </head>
 <body>
 <div class="app">
@@ -182,14 +185,6 @@
     <div>
       <div class="brand">한다면 하는 도리의 영어공부</div>
       <div class="sub">회차별 영어 표현 학습</div>
-    </div>
-    <div class="toolbar">
-      <div class="user-box">
-        <span class="user-email" id="loggedInEmail"></span>
-        <button class="secondary" onclick="logoutSupabase()">로그아웃</button>
-      </div>
-      <button class="secondary" onclick="refreshFromServer()">서버 새로고침</button>
-      <button class="secondary" onclick="exportData()">데이터 내보내기</button>
     </div>
   </header>
 
@@ -322,6 +317,16 @@
       </div>
     </div>
   </section>
+  <footer class="bottom-utility">
+    <div class="toolbar">
+      <div class="user-box">
+        <span class="user-email" id="loggedInEmail"></span>
+        <button class="secondary" onclick="logoutSupabase()">로그아웃</button>
+      </div>
+      <button class="secondary" onclick="refreshFromServer()">서버 새로고침</button>
+      <button class="secondary" onclick="exportData()">데이터 내보내기</button>
+    </div>
+  </footer>
   </div>
 </div>
 
