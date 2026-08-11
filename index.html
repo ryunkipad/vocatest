@@ -586,17 +586,61 @@ async function refreshFromServer(){
 async function startNewRound(){
   if(!supabaseUser) return;
   const round=nextRound();
-  const { data, error }=await supabaseClient
-    .from('sessions')
-    .insert({
-      user_id:supabaseUser.id,
-      round,
-      study_date:todayStr()
-    })
-    .select('id, round, study_date, created_at')
-    .single();
+  const nowIso=new Date().toISOString();
 
-  if(error){ reportError('새 회차를 만들지 못했습니다.', error); return; }
+  // 삭제된 동일 회차가 DB에 남아 있으면 새로 INSERT하지 않고 복원해서 재사용
+  const { data:deletedRows, error:lookupError }=await supabaseClient
+    .from('sessions')
+    .select('id, round, study_date, created_at, deleted_at')
+    .eq('round',round)
+    .not('deleted_at','is',null)
+    .limit(1);
+
+  if(lookupError){
+    reportError('삭제된 회차 확인 중 오류가 발생했습니다.', lookupError);
+    return;
+  }
+
+  let data;
+
+  if(deletedRows?.length){
+    const deletedSession=deletedRows[0];
+
+    const { data:restored, error:restoreError }=await supabaseClient
+      .from('sessions')
+      .update({
+        study_date:todayStr(),
+        deleted_at:null,
+        created_at:nowIso
+      })
+      .eq('id',deletedSession.id)
+      .select('id, round, study_date, created_at')
+      .single();
+
+    if(restoreError){
+      reportError('삭제된 회차를 다시 시작하지 못했습니다.', restoreError);
+      return;
+    }
+
+    data=restored;
+  }else{
+    const { data:inserted, error:insertError }=await supabaseClient
+      .from('sessions')
+      .insert({
+        user_id:supabaseUser.id,
+        round,
+        study_date:todayStr()
+      })
+      .select('id, round, study_date, created_at')
+      .single();
+
+    if(insertError){
+      reportError('새 회차를 만들지 못했습니다.', insertError);
+      return;
+    }
+
+    data=inserted;
+  }
 
   state.maxRoundEver=Math.max(state.maxRoundEver||0,data.round);
   state.sessions.push({
@@ -605,9 +649,17 @@ async function startNewRound(){
   });
   currentSessionId=data.id;
   currentReviewNo=1;
+  currentReviewMode='practice';
+  practiceShuffle=[];
+  practiceRevealOpenCount=0;
+  practiceOpenedIndexes=new Set();
+  stage4Shuffle=[];
+  stage4RevealOpenCount=0;
+  stage4OpenedIndexes=new Set();
   renderAll();
   goTab('review');
 }
+
 function continueCurrent(){ if(getCurrent()) goTab('review'); }
 function selectSession(id){ currentSessionId=id; currentReviewNo=1; currentReviewMode='practice'; practiceShuffle=[]; practiceRevealOpenCount=0; practiceOpenedIndexes=new Set(); stage4Shuffle=[]; stage4RevealOpenCount=0; stage4OpenedIndexes=new Set(); renderAll(); }
 
